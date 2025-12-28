@@ -22,7 +22,7 @@ const tabNavigation = document.getElementById('tabNavigation');
 const tabButtons = tabNavigation.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
 
-// Placeholder for Login State (to simulate data source access)
+// FIX: Set to true since the page is only reached after govt login
 let isGovtLoggedIn = true; 
 
 // --- Helper Functions ---
@@ -90,14 +90,15 @@ function style(feature) {
  * @param {object} properties - Properties of the clicked ward.
  */
 function updateInfoPanel(properties) {
-    const wardName = properties.name || 'Unknown Ward';
+    const wardIdentifier = properties.unique || properties.id || 'N/A';
+    const wardName = `Ward No: ${wardIdentifier}`;
     const district = properties.district || 'N/A';
     const aqi = properties.AQI || 'N/A';
     const { category, advisory, color } = getAQIStyle(aqi);
 
     // Update panel titles
     locationTitle.textContent = wardName;
-    locationSub.textContent = `District: ${district}`;
+    locationSub.textContent = `Zone: ${properties.zone || 'N/A'}, District: ${district}`; 
 
     // Update AQI Tab
     aqiText.textContent = `AQI: ${aqi}`;
@@ -152,13 +153,34 @@ function onEachFeature(feature, layer) {
         feature.properties.district = 'Central Delhi';
     }
 
-    // Bind popup (optional, but good for context)
-    layer.bindPopup(`<b>${feature.properties.name || 'Ward'}</b><br>AQI: ${feature.properties.AQI}`);
+    const wardIdentifier = feature.properties.unique || feature.properties.id || 'Ward';
+    
+    // Bind popup
+    layer.bindPopup(`<b>Ward No: ${wardIdentifier}</b><br>AQI: ${feature.properties.AQI}`);
 
     // Add click listener
     layer.on({
         click: highlightFeature
     });
+    
+    // Add permanent ward number/name label at the centroid
+    if (feature.geometry && feature.geometry.coordinates) {
+        const centroid = turf.centroid(feature);
+        const coords = centroid.geometry.coordinates;
+        
+        // Use the 'unique' property for the permanent label
+        const labelText = feature.properties.unique || feature.properties.id || 'N/A'; 
+        
+        const wardLabel = L.divIcon({
+            className: 'ward-label', 
+            html: `<span>${labelText}</span>`,
+            iconSize: [40, 20], 
+            iconAnchor: [20, 10] 
+        });
+        
+        // Place the marker at the centroid (Latitude, Longitude)
+        L.marker([coords[1], coords[0]], { icon: wardLabel }).addTo(map);
+    }
 }
 
 // --- Main Map Initialization ---
@@ -172,18 +194,16 @@ function initMap() {
         minZoom: 9 
     }).setView([28.7041, 77.1025], 12); // Center on Delhi
 
-    // 2. Add Tile Layer (Use the original, standard, robust URL)
-    // Switch to Dark Theme tiles for consistency with the dark dashboard
+    // 2. Add Tile Layer (Switch to Dark Theme tiles)
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     subdomains: 'abcd'
 }).addTo(map);
 
-    // 3. Fetch and Load GeoJSON Data (This is the part that will fail until you provide delhi_wards.geojson)
+    // 3. Fetch and Load GeoJSON Data
     fetch(GEOJSON_PATH) 
         .then(response => {
             if (!response.ok) {
-                // If GeoJSON fails to load, throw an error, but the base map remains visible
                 throw new Error(`Failed to fetch GeoJSON. Status: ${response.status}`);
             }
             return response.json();
@@ -198,7 +218,6 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
         })
         .catch(error => {
             console.error('Error loading GeoJSON data:', error);
-            // The map will still show the tiles, but without ward boundaries
         });
         
     // 4. Invalidate Size (Keep this fix, as it prevents rendering issues)
@@ -222,11 +241,11 @@ function handleSearch() {
         // Future: Implement sorting logic (e.g., reorder panel list, change map style)
         alert('Sorting AQI functionality coming soon!');
     } else {
-        // Search by Ward Name
+        // Search by Ward ID ('unique' property)
         let found = false;
         wardsLayer.eachLayer(layer => {
-            const name = layer.feature.properties.name ? layer.feature.properties.name.toLowerCase() : '';
-            if (name.includes(query)) {
+            const identifier = layer.feature.properties.unique ? layer.feature.properties.unique.toLowerCase() : '';
+            if (identifier.includes(query)) {
                 // Focus the map on the found ward and click it
                 map.fitBounds(layer.getBounds());
                 layer.fire('click');
@@ -235,7 +254,7 @@ function handleSearch() {
         });
 
         if (!found && query) {
-            alert(`Ward '${query}' not found.`);
+            alert(`Ward '${query}' not found. Search must match the Ward ID/Unique Code.`);
         }
     }
 }
@@ -284,4 +303,3 @@ closePanel.addEventListener('click', () => {
 tabNavigation.addEventListener('click', handleTabSwitch);
 
 // Initial call to start the map
-initMap();
