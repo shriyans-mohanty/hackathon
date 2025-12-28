@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delhi Ward AQI Dashboard (Govt Hub)</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    
+    <link rel="stylesheet" href="styles.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-dark': '#1e293b',
+                        'secondary-dark': '#334155',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-primary-dark text-white" style="margin: 0; padding: 0; height: 100vh; width: 100vw; overflow: hidden;">
+
+    <div id="map" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0;"></div>
+
+    <div class="fixed top-4 left-4 z-10 w-[95%] max-w-lg">
+        <header class="bg-secondary-dark/80 backdrop-blur-md p-4 rounded-xl shadow-lg border border-white/10">
+            <h1 class="text-xl font-bold mb-2">Delhi Air Quality & Ward Management Hub</h1>
+            <div class="flex space-x-2">
+                <input type="text" id="searchInput" placeholder="Search ward name or 'sort aqi'"
+                       class="w-full p-2 rounded-lg bg-primary-dark/50 border border-white/20 focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-400 text-sm">
+                <button id="searchBtn" class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+    </div>
+
+    <div id="infoPanel" class="fixed top-0 right-0 h-full w-[92%] max-w-sm glass p-6 translate-x-full transition-transform duration-500 z-[2000] overflow-auto flex flex-col">
+        
+        <h2 id="locationTitle" class="text-2xl font-semibold mb-1">Ward Location</h2>
+        <p id="locationSub" class="text-sm text-gray-300 mb-4">--</p>
+        
+        <div id="loginStatus" class="flex items-center justify-between mb-4 pb-2 border-b border-white/20">
+            <span id="loginText" class="text-sm font-medium text-red-300">GOVT LOGIN: Required</span>
+            <button id="loginBtn" class="px-3 py-1 text-xs rounded bg-red-600 hover:bg-red-700 transition">Log In</button>
+        </div>
+
+        <div id="tabNavigation" class="flex flex-wrap gap-2 mb-4">
+            <button data-tab="aqi" class="tab-btn active bg-white/20">AQI & Pollutants</button>
+            <button data-tab="contributors" class="tab-btn">Contributors & Source</button>
+            <button data-tab="mitigation" class="tab-btn">Actionable Mitigation</button>
+            <button data-tab="tasks" class="tab-btn">Task Sheet</button>
+            <button data-tab="policy" class="tab-btn">Policy & Alerts</button>
+        </div>
+
+        <div id="panelContent" class="flex-grow overflow-y-auto pr-2">
+
+            <div data-content="aqi" class="tab-content active-content">
+                <h3 class="text-xl font-semibold mb-3 border-b border-white/10 pb-1">Current Air Quality</h3>
+                <p id="aqiText" class="text-2xl font-bold mb-3" style="color: #94a3b8;">AQI: --</p>
+                <p id="advisory" class="text-gray-200 text-sm mb-4">--</p>
+                <div class="space-y-2 text-sm">
+                    <p>PM₂.₅: <span id="pm25" class="font-bold">--</span> µg/m³</p>
+                    <p>PM₁₀: <span id="pm10" class="font-bold">--</span> µg/m³</p>
+                    <p>NO₂: <span id="no2" class="font-bold">--</span> ppb</p>
+                    <p>O₃: <span id="o3" class="font-bold">--</span> ppb</p>
+                    <h4 class="font-semibold pt-4 border-t border-white/10 mt-4">AQI Trend (Last 7 Days)</h4>
+                    <div id="aqiTrendChart" class="h-40 bg-white/5 rounded p-2 text-center text-xs flex items-center justify-center">Loading trend data...</div>
+                </div>
+            </div>
+
+            <div data-content="contributors" class="tab-content hidden">
+                <h3 class="text-xl font-semibold mb-3 border-b border-white/10 pb-1">Source Contribution Analysis</h3>
+                <p class="text-sm text-gray-300 mb-3">Estimated contributors of primary pollutants (e.g., PM2.5) for this ward's geographical context.</p>
+                <ul id="contributorsList" class="list-disc list-inside space-y-2 text-sm ml-2">
+                    <li><span class="font-bold">Transport:</span> --%</li>
+                    <li><span class="font-bold">Industrial Emissions:</span> --%</li>
+                    <li><span class="font-bold">Residential/Biomass:</span> --%</li>
+                    <li><span class="font-bold">Dust (Road/Construction):</span> --%</li>
+                </ul>
+            </div>
+
+            <div data-content="mitigation" class="tab-content hidden">
+                <h3 class="text-xl font-semibold mb-3 border-b border-white/10 pb-1">Actionable Mitigation Strategy</h3>
+                <p class="text-sm text-gray-300 mb-3">Specific, implementable actions for this ward, tied to policy goals.</p>
+                
+                <div class="space-y-4">
+                    <div class="p-3 bg-white/10 rounded">
+                        <p class="font-bold">Action: </p><p class="text-sm">Enforce ban on biomass burning in industrial clusters (within 2km radius).</p>
+                        <p class="text-xs text-gray-400 mt-1">Implementation Barrier: Lack of surveillance drones.</p>
+                    </div>
+                    <div class="p-3 bg-white/10 rounded">
+                        <p class="font-bold">Action: </p><p class="text-sm">Immediate road sweeping frequency increase during peak hours.</p>
+                        <p class="text-xs text-gray-400 mt-1">Implementation Barrier: Insufficient mechanical sweepers allocated to the ward.</p>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div data-content="tasks" class="tab-content hidden">
+                <h3 class="text-xl font-semibold mb-3 border-b border-white/10 pb-1">Government Task Sheet</h3>
+                <p class="text-sm text-yellow-300 mb-3">Login required to view/update tasks. Currently displaying read-only example.</p>
+                <div id="govTaskEntry" class="space-y-3">
+                    <div class="p-3 bg-white/10 rounded">
+                        <p class="font-bold">Task #1203 - Anti-Smog Gun Deployment</p>
+                        <p class="text-xs text-gray-400">Status: <span class="text-green-400">Completed (12/24/2025)</span> | Assigned: PWD</p>
+                    </div>
+                    <div class="p-3 bg-white/10 rounded">
+                        <p class="font-bold">Task #1204 - Construction Site Inspection</p>
+                        <p class="text-xs text-red-400">Status: <span class="text-red-400">Pending (Due: 12/28/2025)</span> | Assigned: DMC</p>
+                    </div>
+                    <textarea id="updateTaskArea" rows="3" placeholder="Add new task or update status (Login required)" class="w-full text-sm p-2 rounded bg-white/5 border border-white/10 resize-none" disabled></textarea>
+                    <button id="submitTaskBtn" class="w-full px-4 py-2 rounded-full bg-blue-600/50 text-sm" disabled>Submit Update</button>
+                </div>
+            </div>
+
+            <div data-content="policy" class="tab-content hidden">
+                <h3 class="text-xl font-semibold mb-3 border-b border-white/10 pb-1">Policy Recommendations & Alerts</h3>
+                
+                <h4 class="font-semibold mb-2">Short Term Alerts (Priority)</h4>
+                <div id="alertsContainer" class="space-y-2 p-2 bg-red-900/20 rounded mb-4">
+                    <p class="text-sm font-medium text-red-300">ALERT: AQI 420 (Severe) detected 5km N. Deployment team requested.</p>
+                </div>
+
+                <h4 class="font-semibold mb-2">Long-Term Policy Recommendation</h4>
+                <p class="text-sm text-gray-300">Recommendation tailored for Delhi's current and projected conditions:</p>
+                <ul class="list-disc list-inside text-xs ml-2 mt-2 space-y-1">
+                    <li>Mandate transition to BS-VI equivalent standards for non-road vehicles by Q3 2026.</li>
+                    <li>Invest in decentralized monitoring network for localized hotspot detection.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="mt-4 border-t border-white/20 pt-4">
+            <button id="closePanel" class="mt-4 w-full px-4 py-2 rounded-full bg-white/8 hover:bg-white/12 text-sm">Close</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src='https://unpkg.com/@turf/turf@6/turf.min.js'></script>
+    <script src="https://unpkg.com/togeojson@0.16.0/togeojson.js"></script>
+
+    <script src="script.js"></script>
+</body>
+</html>
