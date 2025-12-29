@@ -26,10 +26,42 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .leaflet-tooltip.my-tooltip { background: rgba(0,0,0,0.7); border-radius: 6px; color: #fff; padding: 6px 8px; border: 0; font-size: 13px; }
     #liveAQStatusBar { position: absolute; left: 1rem; bottom: 1rem; z-index: 2100; background: rgba(0,0,0,0.6); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+
+    /* --- ADDED OPENING TAG BELOW --- */
+    /* Removed Neon, replaced with clean typography */
+    .neon-text { 
+      text-shadow: none; 
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+    }
+
+    .tab-btn-active { background: rgba(52, 211, 153, 0.15); border-bottom: 2px solid #34d399; color: #34d399; }
+    .tab-btn { transition: all 0.2s ease; }
+    .tab-btn:hover { background: rgba(255,255,255,0.05); }
+
+    /* 🌿 Professional Action Buttons */
+    .ui-tab-btn {
+      background: rgba(255, 255, 255, 0.03);
+      color: #cbd5e1;
+      padding: 12px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .ui-tab-btn:hover {
+      background: rgba(52, 211, 153, 0.1);
+      color: #34d399;
+      border-color: rgba(52, 211, 153, 0.4);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
-
   <!-- Back to Landing -->
   <button onclick="window.location.href='index.html'" class="absolute top-6 left-6 z-[1400] px-4 py-2 rounded-full border border-white/30 hover:bg-white hover:text-black transition">
     ← Back to Home
@@ -43,7 +75,7 @@
     </div>
   </div>
 
-  <!-- Map container -->
+ <!-- Map container -->
   <div id="map"></div>
 
   <!-- Loading overlay -->
@@ -55,34 +87,91 @@
   </div>
 
   <!-- Info side panel (glassmorphism) -->
-  <div id="infoPanel" class="fixed top-0 right-0 h-full w-[92%] max-w-sm glass p-6 translate-x-full transition-transform duration-500 z-[2000] overflow-auto">
-    <h2 id="locationTitle" class="text-2xl font-semibold mb-2">Location</h2>
-    <p id="locationSub" class="text-sm text-gray-300 mb-4">--</p>
+<div id="infoPanel" class="fixed top-0 right-0 h-full w-[92%] max-w-sm glass p-6 translate-x-full transition-transform duration-500 z-[2000] overflow-auto">
+  <!-- 🔹 Original Working Elements -->
+  <h2 id="locationTitle" class="text-3xl font-semibold mb-1 neon-text">Location</h2>
+  <p id="locationSub" class="text-xs text-gray-300 mb-4">--</p>
 
-    <p id="aqiText" class="text-lg font-semibold mb-3">AQI: --</p>
+  <p id="aqiText" class="text-4xl font-black mb-4">AQI: --</p>
 
-    <div class="space-y-2 text-sm">
-      <p>PM₂.₅: <span id="pm25">--</span> µg/m³</p>
-      <p>PM₁₀: <span id="pm10">--</span> µg/m³</p>
+  <div class="grid grid-cols-2 gap-4 text-sm mb-6">
+    <div class="glass p-3 rounded-lg text-center">
+      PM₂.₅ <br><span id="pm25" class="text-xl font-semibold">--</span>
     </div>
-
-    <div class="mt-6">
-      <h3 class="font-semibold mb-2">Health Advisory</h3>
-      <p id="advisory" class="text-gray-200 text-sm">--</p>
-    </div>
-
-    <div class="mt-6">
-      <button id="closePanel" class="mt-4 w-full px-4 py-2 rounded-full bg-white/8 hover:bg-white/12 text-sm">Close</button>
+    <div class="glass p-3 rounded-lg text-center">
+      PM₁₀ <br><span id="pm10" class="text-xl font-semibold">--</span>
     </div>
   </div>
+
+
+  
+  <!-- 🌟 Unified Tab Section (Govt + Citizen UI) -->
+  <div id="uiTabs" class="grid grid-cols-2 gap-3 mb-6">
+
+  <!-- 🔹 Govt / Ward Analysis Tabs -->
+    <button class="ui-tab-btn" data-key="staySafe">Health Advisory</button>
+    <button class="ui-tab-btn" data-key="forecast">Meteorology</button>
+    <button class="ui-tab-btn" data-key="actions">Directives</button>
+
+    <!-- 🧑‍🤝‍🧑 Citizen-Exclusive Features -->
+    <button class="ui-tab-btn" data-key="complaint">Grievances</button>
+    <button class="ui-tab-btn" data-key="policies">Policy (GRAP)</button>
+    <button class="ui-tab-btn" data-key="govTask">MCD Actions</button>
+
+  </div>
+
+  <!-- 🔹 Mandatory advisory for JS -->
+  <div class="mt-6">
+    <h3 class="font-semibold mb-2">Health Advisory</h3>
+    <p id="advisory" class="text-gray-200 text-sm">--</p>
+  </div>
+
+  <!-- 🔹 Close Button -->
+  <div class="mt-6">
+    <button id="closePanel" class="mt-4 w-full px-4 py-2 rounded-full bg-white/8 hover:bg-white/12 text-sm">
+      Close
+    </button>
+  </div>
+</div>
+<!-- 💬 FLOATING POPUP PANEL INSIDE MAP -->
+<div id="citizenFloat"
+  class="hidden fixed top-[20%] right-[350px] w-[600px] min-h-[400px]
+         bg-black/95 glass p-8 rounded-xl shadow-[0_0_40px_rgba(16,185,129,0.1)] backdrop-blur-xl
+         border border-emerald-500/20 z-[4000] transition-all duration-300
+         translate-x-[160%] flex flex-col">
+
+  <button id="citizenFloatClose"
+    class="absolute top-3 right-3 text-gray-300 hover:text-white text-lg">✖</button>
+
+  <h2 id="citizenFloatTitle" class="text-2xl font-bold text-emerald-400 mb-4 tracking-wide drop-shadow-sm"></h2>
+
+  <div id="citizenFloatBody"
+       class="text-base leading-relaxed pr-4 overflow-y-auto overflow-x-hidden break-words flex-1"
+       style="max-height: 320px;">
+  </div>
+</div>
+
 
   <!-- live status badge -->
   <div id="liveAQStatusBar">AQI: —</div>
 
 <script>
-/* ================== FULL DASHBOARD SCRIPT ================== */
+/* ================== FULL DASHBOARD SCRIPT WITH SPATIAL INTERPOLATION ================== */
 
-const map = L.map('map', { preferCanvas: true }).setView([28.6139, 77.2090], 11);
+
+const map = L.map('map', { 
+    preferCanvas: true,
+    zoomControl: false, 
+    // Smoothness Settings
+    zoomAnimation: true,
+    zoomAnimationThreshold: 10,
+    // Speed Settings
+    zoomSnap: 0,                // Set to 0 for maximum fluid responsiveness
+    wheelPxPerZoomLevel: 10,    // Lower = Faster zoom (was 120)
+    wheelDelta: 1.5,            // Higher = more zoom per scroll click
+    inertia: true,
+    inertiaDeceleration: 3000   // Makes movement stop faster
+}).setView([28.6139, 77.2090], 11);
 
 // Basemap
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -119,6 +208,21 @@ let tempSearchMarker = null;
 let aqiStations = [];
 const stationLayer = L.layerGroup().addTo(map);
 
+function pointInsideFeature(pt, feature) {
+  try {
+    if (feature.geometry.type === 'Polygon') {
+      return turf.booleanPointInPolygon(pt, feature);
+    }
+    if (feature.geometry.type === 'MultiPolygon') {
+      return feature.geometry.coordinates.some(coords => {
+        const poly = turf.polygon(coords);
+        return turf.booleanPointInPolygon(pt, poly);
+      });
+    }
+  } catch (e) {}
+  return false;
+}
+
 // Breakpoints for PM2.5 -> AQI
 const PM25_BREAKPOINTS = [
   { bpLow: 0, bpHigh: 30, aqiLow: 0, aqiHigh: 50 },
@@ -141,8 +245,7 @@ function pm25ToAQI(pm25) {
 function clampAQI(aqi) {
   if (aqi == null || isNaN(aqi)) return null;
   const v = Number(aqi);
-  if (v < 0 || v > 500) return null;
-  return Math.round(v);
+  return Math.min(Math.max(Math.round(v), 0), 500);
 }
 
 function getAQIColor(aqi) {
@@ -172,675 +275,486 @@ function advisoryForAQI(aqi) {
   return 'Air quality acceptable for most individuals.';
 }
 
-/* Fetch AQI from backend, trying multiple endpoints */
+/* ================== CORE SPATIAL ENGINE (NEW) ================== */
+
+function getInterpolatedAQI(lat, lon, stations) {
+  if (!stations || stations.length === 0) return null;
+
+  const stationData = stations.map(s => {
+    const d = turf.distance(turf.point([lon, lat]), turf.point([s.lon, s.lat]), { units: 'kilometers' });
+    const val = s.aqi ?? (s.pm25 ? pm25ToAQI(s.pm25) : null);
+    return { val, dist: d };
+  }).filter(s => s.val !== null);
+
+  if (stationData.length === 0) return null;
+  stationData.sort((a, b) => a.dist - b.dist);
+
+  // If station is right there, use it
+  if (stationData[0].dist < 0.5) return { aqi: Math.round(stationData[0].val), method: 'Direct Reading' };
+
+  // IDW Logic (Inverse Distance Weighting)
+  const nearest = stationData.slice(0, 3);
+  let sumWeight = 0, sumWeightedAQI = 0;
+
+  nearest.forEach(s => {
+    const weight = 1 / Math.pow(s.dist, 2);
+    sumWeight += weight;
+    sumWeightedAQI += s.val * weight;
+  });
+
+  return { 
+    aqi: clampAQI(sumWeightedAQI / sumWeight), 
+    method: 'Spatial Interpolation' 
+  };
+}
+
+/* ================== BACKEND & DATA PROCESSING ================== */
+
 async function fetchAQIFromBackend() {
   const endpoints = ['/api/aqi', 'http://localhost:3000/api/aqi'];
-  let lastErr = null;
   for (const url of endpoints) {
     try {
       const r = await fetch(url);
-      if (!r.ok) throw new Error(`Status ${r.status}`);
-      const j = await r.json();
-      return j;
-    } catch (err) {
-      lastErr = err;
-      console.warn('Backend AQI fetch failed for', url, err.message);
-    }
+      if (r.ok) return await r.json();
+    } catch (err) {}
   }
-  throw lastErr;
+  throw new Error('All backend endpoints failed');
 }
 
-/* Normalize backend payload to station points array */
 function normalizeToStationPoints(payload) {
   const points = [];
+  const data = Array.isArray(payload) ? payload : (payload?.results || (payload?.aqi ? [payload] : []));
+  
+  data.forEach(item => {
+    let lat = item.lat ?? item.latitude ?? item.location?.lat ?? item.coordinates?.latitude ?? item.city?.geo?.[0];
+    let lon = item.lon ?? item.longitude ?? item.location?.lon ?? item.coordinates?.longitude ?? item.city?.geo?.[1];
+    if (lat == null || lon == null) return;
 
-  if (Array.isArray(payload)) {
-    payload.forEach(item => {
-      const lat = item.lat ?? item.latitude ?? item.location?.lat;
-      const lon = item.lon ?? item.longitude ?? item.location?.lon;
-      const aqiVal = item.aqi ?? (item.v ?? null);
-      if (lat == null || lon == null) return;
-      points.push({
-        id: item.uid ?? item.station ?? `${lat},${lon}`,
-        lat: Number(lat),
-        lon: Number(lon),
-        aqi: aqiVal === '-' ? null : (aqiVal != null ? Number(aqiVal) : null),
-        pm25: item.pm25 != null ? Number(item.pm25) : null,
-        pm10: item.pm10 != null ? Number(item.pm10) : null,
-        raw: item
-      });
-    });
-    return points;
-  }
+    let aqiVal = item.aqi ?? item.v;
+    let pm25 = item.pm25 ?? item.iaqi?.pm25?.v;
+    let pm10 = item.pm10 ?? item.iaqi?.pm10?.v;
 
-  if (payload && Array.isArray(payload.results)) {
-    payload.results.forEach(loc => {
-      const lat = loc.coordinates?.latitude;
-      const lon = loc.coordinates?.longitude;
-      let pm25 = null, pm10 = null;
-      if (Array.isArray(loc.measurements)) {
-        loc.measurements.forEach(m => {
-          if (m.parameter === 'pm25') pm25 = m.value;
-          if (m.parameter === 'pm10') pm10 = m.value;
+    // OpenAQ fallback
+    if (item.measurements) {
+        item.measurements.forEach(m => {
+            if (m.parameter === 'pm25') pm25 = m.value;
+            if (m.parameter === 'pm10') pm10 = m.value;
         });
-      } else if (Array.isArray(loc.parameters)) {
-        loc.parameters.forEach(p => {
-          if (p.parameter === 'pm25' && p.lastValue != null) pm25 = p.lastValue;
-          if (p.parameter === 'pm10' && p.lastValue != null) pm10 = p.lastValue;
-        });
-      }
-      points.push({
-        id: loc.location || loc.id || `${lat},${lon}`,
-        lat: Number(lat),
-        lon: Number(lon),
-        aqi: null,
-        pm25: pm25 != null ? Number(pm25) : null,
-        pm10: pm10 != null ? Number(pm10) : null,
-        raw: loc
-      });
-    });
-    return points;
-  }
-
-  if (payload && payload.aqi !== undefined) {
-    const lat = (payload.city?.geo?.[0]) ?? null;
-    const lon = (payload.city?.geo?.[1]) ?? null;
-    if (lat != null && lon != null) {
-      points.push({
-        id: payload.idx ?? payload.city?.name ?? `${lat},${lon}`,
-        lat: Number(lat),
-        lon: Number(lon),
-        aqi: payload.aqi != null ? Number(payload.aqi) : null,
-        pm25: payload.iaqi?.pm25?.v ?? null,
-        pm10: payload.iaqi?.pm10?.v ?? null,
-        raw: payload
-      });
     }
-    return points;
-  }
 
-  return points; // fallback
+    points.push({
+      id: item.uid ?? item.location ?? `${lat},${lon}`,
+      lat: Number(lat), lon: Number(lon),
+      aqi: (aqiVal === '-' || aqiVal == null) ? null : Number(aqiVal),
+      pm25: pm25 ? Number(pm25) : null,
+      pm10: pm10 ? Number(pm10) : null
+    });
+  });
+  return points;
 }
 
-/* Filter stations inside Delhi wards polygon (if wardsGeo loaded) */
 function filterStationsInsideDelhi(stations) {
-  if (!Array.isArray(stations) || !wardsGeo?.features) return stations;
+  if (!wardsGeo?.features) return stations;
   return stations.filter(s => {
-    if (s.lat == null || s.lon == null) return false;
     const pt = turf.point([s.lon, s.lat]);
-    return wardsGeo.features.some(f => {
-      try { return turf.booleanPointInPolygon(pt, f); }
-      catch (e) { return false; }
-    });
+    return wardsGeo.features.some(f => pointInsideFeature(pt, f));
   });
 }
 
-/* Render station markers with AQI data */
 function renderAQIStationsOnMap(stationPoints) {
   stationLayer.clearLayers();
-  if (!Array.isArray(stationPoints)) return;
   stationPoints.forEach(st => {
-    if (!st.lat || !st.lon) return;
-    const aqiRaw = (st.aqi != null) ? st.aqi : (st.pm25 != null ? pm25ToAQI(st.pm25) : null);
-    const aqi = clampAQI(aqiRaw);
-    if (aqi == null) return;
-    const color = getAQIColor(aqi);
-    const marker = L.circleMarker([st.lat, st.lon], {
-      radius: 6,
-      fillColor: color,
-      color: '#fff',
-      weight: 1,
-      fillOpacity: 0.95
-    });
-    marker.bindPopup(`<div style="font-size:13px">
-      <strong>Station</strong><br/>
-      AQI: <b>${aqi != null ? aqi : 'N/A'}</b><br/>
-      PM2.5: ${st.pm25 != null ? st.pm25 : '—'} µg/m³<br/>
-      PM10: ${st.pm10 != null ? st.pm10 : '—'} µg/m³
-    </div>`);
-    stationLayer.addLayer(marker);
+    const aqi = st.aqi ?? pm25ToAQI(st.pm25);
+    if (!aqi) return;
+    L.circleMarker([st.lat, st.lon], {
+      radius: 6, fillColor: getAQIColor(aqi), color: '#fff', weight: 1, fillOpacity: 0.9
+    }).bindPopup(`Station AQI: ${aqi}`).addTo(stationLayer);
   });
 }
 
-/* Find nearest station to a given point (lat, lon) */
-function nearestStationToPoint(lat, lon, stationPoints) {
-  if (!Array.isArray(stationPoints) || stationPoints.length === 0) return null;
-  let best = null, bestDist = Infinity;
-  stationPoints.forEach(s => {
-    if (s.lat == null || s.lon == null) return;
-    const d = turf.distance(turf.point([s.lon, s.lat]), turf.point([lon, lat]), { units: 'kilometers' });
-    if (d < bestDist) {
-      bestDist = d;
-      best = { station: s, distKm: d };
-    }
-  });
-  return best;
-}
+/* ================== MAIN INTEGRATION ================== */
 
-// Global helper using stored aqiStations
-function getNearestStation(lat, lon) {
-  if (!Array.isArray(aqiStations) || aqiStations.length === 0) return null;
-  let best = null, bestD = Infinity;
-  aqiStations.forEach(s => {
-    if (s.lat == null || s.lon == null) return;
-    const d = turf.distance(turf.point([s.lon, s.lat]), turf.point([lon, lat]), { units: 'kilometers' });
-    if (d < bestD) {
-      bestD = d;
-      best = { station: s, distKm: d };
-    }
-  });
-  return best;
-}
-
-/* Main: Integrate live AQI into wards (Phase 2) */
 async function integrateLiveAQIntoWards() {
-  if (!wardsGeo?.features) {
-    console.warn('No wardsGeo loaded — cannot integrate live AQ.');
-    alert('Ward shapes not loaded. Please ensure delhi_wards.geojson or KML is available.');
-    return;
-  }
+  if (!wardsGeo) return;
+  showLoader('Syncing Delhi Air Quality...');
 
-  // Reset ward properties accumulators
-  wardsGeo.features.forEach(f => {
-    f.properties._pm25_values = [];
-    f.properties._pm10_values = [];
-    f.properties._station_matches = [];
-  });
-
-  showLoader('Fetching AQI from backend…');
-
-  let payload;
   try {
-    payload = await fetchAQIFromBackend();
-  } catch (err) {
-    hideLoader();
-    console.error('Backend AQI fetch error', err);
-    alert('Backend fetch failed. Is the backend running at /api/aqi?');
-    return;
-  }
-  hideLoader();
+    const payload = await fetchAQIFromBackend();
+    const allPoints = normalizeToStationPoints(payload);
+    aqiStations = filterStationsInsideDelhi(allPoints);
+    renderAQIStationsOnMap(aqiStations);
 
-  // Normalize to station points
-  let stationPoints = normalizeToStationPoints(payload);
+    // Calculate city average as final fallback
+    const validAQIs = aqiStations.map(s => s.aqi ?? pm25ToAQI(s.pm25)).filter(v => v != null);
+    const cityAvg = validAQIs.length ? (validAQIs.reduce((a, b) => a + b, 0) / validAQIs.length) : null;
 
-  // Filter stations inside Delhi wards
-  stationPoints = filterStationsInsideDelhi(stationPoints);
-  aqiStations = stationPoints;
-
-  // Visualize stations on map
-  renderAQIStationsOnMap(stationPoints);
-
-  // Assign stations to wards
-  stationPoints.forEach(s => {
-    const pt = turf.point([s.lon, s.lat]);
-    for (const f of wardsGeo.features) {
-      try {
-        if (turf.booleanPointInPolygon(pt, f)) {
-          if (s.pm25 != null) f.properties._pm25_values.push(s.pm25);
-          if (s.pm10 != null) f.properties._pm10_values.push(s.pm10);
-          if (s.aqi != null) f.properties._station_matches.push({ id: s.id, aqi: s.aqi });
-          break; // assigned to first containing ward
-        }
-      } catch (e) {
-        // skip malformed polygon
+    wardsGeo.features.forEach(f => {
+      const centroid = turf.pointOnFeature(f).geometry.coordinates;
+      const result = getInterpolatedAQI(centroid[1], centroid[0], aqiStations);
+      
+      if (result) {
+        f.properties.aqi = result.aqi;
+        f.properties._aqi_method = result.method;
+      } else {
+        f.properties.aqi = clampAQI(cityAvg);
+        f.properties._aqi_method = 'City Average';
       }
-    }
-  });
-
-  // Set a fallback radius (km)
-  const fallbackRadiusKm = 15;
-
-  let wardsAssigned = 0;
-  wardsGeo.features.forEach(f => {
-    const pm25Vals = (f.properties._pm25_values || []).filter(v => Number.isFinite(v));
-    const pm10Vals = (f.properties._pm10_values || []).filter(v => Number.isFinite(v));
-    let aqiValue = null;
-    let method = null;
-
-    if (pm25Vals.length > 0) {
-      const avg25 = pm25Vals.reduce((a, b) => a + b, 0) / pm25Vals.length;
-      aqiValue = pm25ToAQI(avg25);
-      aqiValue = clampAQI(aqiValue);
-      method = 'pm25-inside';
-    } else if ((f.properties._station_matches || []).length > 0) {
-      const matches = (f.properties._station_matches || []).filter(m => m.aqi != null);
-      if (matches.length > 0) {
-        const avgAqi = Math.round(matches.reduce((a, b) => a + b.aqi, 0) / matches.length);
-        aqiValue = clampAQI(avgAqi);
-        method = 'aqi-inside';
-      }
-    }
-
-    if (aqiValue == null) {
-      // fallback: centroid -> nearest station
-      let centroid;
-      try { centroid = turf.centerOfMass(f).geometry.coordinates; } catch (e) { centroid = null; }
-      if (centroid) {
-        const nearest = nearestStationToPoint(centroid[1], centroid[0], stationPoints);
-        if (nearest && nearest.station) {
-          if (nearest.distKm <= fallbackRadiusKm) {
-            if (nearest.station.aqi != null) {
-              aqiValue = clampAQI(nearest.station.aqi);
-              method = `nearest-aqi (${nearest.distKm.toFixed(2)} km)`;
-            } else if (nearest.station.pm25 != null) {
-              aqiValue = clampAQI(pm25ToAQI(nearest.station.pm25));
-              method = `nearest-pm25 (${nearest.distKm.toFixed(2)} km)`;
-            }
-          } else {
-            method = `nearest-too-far (${nearest.distKm.toFixed(2)} km)`;
-          }
-        }
-      }
-    }
-
-    // Assign computed values
-    f.properties.aqi = aqiValue;
-    f.properties.pm25 = (pm25Vals.length ? Number((pm25Vals.reduce((a, b) => a + b, 0) / pm25Vals.length).toFixed(1)) : (f.properties.pm25 || '--'));
-    f.properties.pm10 = (pm10Vals.length ? Number((pm10Vals.reduce((a, b) => a + b, 0) / pm10Vals.length).toFixed(1)) : (f.properties.pm10 || '--'));
-    f.properties._aqi_method = method || 'no-data';
-
-    if (aqiValue != null) wardsAssigned++;
-  });
-
-  console.log('Wards assigned AQI:', wardsAssigned, '/', wardsGeo.features.length);
-
-  // Update ward layer styles
-  if (wardsLayer) {
-    wardsLayer.eachLayer(layer => {
-      try {
-        layer.setStyle({ fillColor: getAQIColor(layer.feature.properties?.aqi ?? null), fillOpacity: 0.22 });
-      } catch (e) { console.error(e); }
     });
-  }
 
-  // Update status
-  const ts = (payload?.time?.iso || payload?.time?.s || new Date().toISOString());
-  liveAQStatusBar.innerText = `Stations: ${stationPoints.length} • Wards with AQI: ${wardsAssigned} • Updated: ${new Date(ts).toLocaleString()}`;
-}
-
-/* ----------------- Load ward shapes (geojson or kml) ----------------- */
-async function tryLoadLocalGeoJSON() {
-  try {
-    showLoader('Looking for local delhi_wards.geojson...');
-    const r = await fetch('delhi_wards.geojson');
-    if (!r.ok) { hideLoader(); return null; }
-    const json = await r.json();
-    hideLoader();
-    return json;
-  } catch (err) { hideLoader(); return null; }
-}
-
-async function tryFetchRemoteKMLConvert() {
-  const rawKmlUrl = 'https://raw.githubusercontent.com/HindustanTimesLabs/shapefiles/master/city/delhi/ward/delhi_ward.kml';
-  try {
-    showLoader('Fetching KML from repo and converting (may take a few seconds)...');
-    const r = await fetch(rawKmlUrl);
-    if (!r.ok) throw new Error('remote KML not accessible');
-    const text = await r.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/xml');
-    const gj = toGeoJSON.kml(doc);
-    hideLoader();
-    return gj;
-  } catch (err) {
-    console.warn('Remote KML fetch/convert failed', err);
-    hideLoader();
-    return null;
-  }
-}
-
-async function tryLoadLocalKML() {
-  try {
-    showLoader('Looking for local delhi_ward.kml...');
-    const r = await fetch('delhi_ward.kml');
-    if (!r.ok) { hideLoader(); return null; }
-    const text = await r.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/xml');
-    const gj = toGeoJSON.kml(doc);
-    hideLoader();
-    return gj;
-  } catch (err) {
-    hideLoader();
-    return null;
-  }
-}
-
-async function loadWardShapes() {
-  let gj = await tryLoadLocalGeoJSON();
-  if (gj) return gj;
-  gj = await tryFetchRemoteKMLConvert();
-  if (gj) return gj;
-  gj = await tryLoadLocalKML();
-  if (gj) return gj;
-  return null;
-}
-
-/* Render wards GeoJSON layer with interactions */
-function renderWardsGeoJSON(gj) {
-  wardsGeo = gj;
-  wardsGeo.features.forEach((f, i) => {
-    if (!f.properties) f.properties = {};
-    if (!f.properties.name) {
-      f.properties.name = f.properties.WARD_NAME || f.properties.ward || f.properties.NAME || (`Ward ${i+1}`);
-    }
-  });
-
-  wardsLayer = L.geoJSON(wardsGeo, {
-    style: feature => {
-      const aqi = feature.properties?.aqi ?? null;
-      return { color: '#94a3b8', weight: 1, opacity: 0.7, fillColor: getAQIColor(aqi), fillOpacity: 0.14 };
-    },
-    onEachFeature: (feature, layer) => {
-      const name = feature.properties?.name || 'Ward';
-      layer.bindTooltip(name, { className: 'leaflet-tooltip my-tooltip', sticky: false, direction: 'center' });
-      layer.on('click', () => {
-        onWardSelected(feature, layer);
-        map.fitBounds(layer.getBounds(), { padding: [12,12] });
+    if (wardsLayer) {
+      wardsLayer.eachLayer(layer => {
+        const a = layer.feature.properties.aqi;
+        layer.setStyle({ fillColor: getAQIColor(a), fillOpacity: 0.25 });
       });
-      layer.on('mouseover', () => layer.setStyle({ weight: 2, fillOpacity: 0.22 }));
-      layer.on('mouseout', () => layer.setStyle({ weight: 1, fillOpacity: 0.14 }));
     }
-  }).addTo(map);
+    
+    liveAQStatusBar.innerText = `Updated: ${new Date().toLocaleTimeString()} • Coverage: 100% via Interpolation`;
+  } catch (err) {
+    console.error(err);
+    liveAQStatusBar.innerText = 'Live fetch failed. Check backend.';
+  } finally {
+    hideLoader();
+  }
 }
 
-// Ward selection with fallback
-function onWardSelected(feature, layer) {
-  if (selectedHighlight) {
-    try { map.removeLayer(selectedHighlight); } catch(e){}
-    selectedHighlight = null;
-  }
-  selectedHighlight = L.geoJSON(feature, { style: { color: '#ffffff', weight: 3, fillOpacity: 0.22 } }).addTo(map);
+/* ================== SEARCH & INTERACTION ================== */
 
-  const props = feature.properties || {};
-  const name = props.name || props.WARD_NAME || 'Ward';
+/* ================== UPDATED SEARCH & INTERACTION ================== */
 
-  // Use ward's assigned AQI if available, else fallback
-  let aqi = props.aqi ?? null;
-  let pm25 = props.pm25 ?? '--';
-  let pm10 = props.pm10 ?? '--';
-  let derivedFrom = null;
 
-  if (aqi == null && Array.isArray(aqiStations) && aqiStations.length > 0) {
-    const centroid = turf.centerOfMass(feature)?.geometry?.coordinates;
-    if (centroid) {
-      const nearest = getNearestStation(centroid[1], centroid[0]);
-      if (nearest && nearest.station) {
-        if (nearest.distKm <= 7) { // fallback radius
-          if (nearest.station.aqi != null) {
-            aqi = clampAQI(Number(nearest.station.aqi));
-            derivedFrom = `nearest station (aqi) ${nearest.distKm.toFixed(2)} km`;
-          } else if (nearest.station.pm25 != null) {
-            aqi = clampAQI(pm25ToAQI(nearest.station.pm25));
-            derivedFrom = `nearest station (pm25->aqi) ${nearest.distKm.toFixed(2)} km`;
-          }
-        } else {
-          derivedFrom = `nearest station too far (${nearest.distKm.toFixed(2)} km)`;
+async function onWardSelected(feature, layer) {
+    // 1. UI: Highlight the selected ward
+    if (selectedHighlight) map.removeLayer(selectedHighlight);
+    selectedHighlight = L.geoJSON(feature, { 
+        style: { color: '#00eeff', weight: 4, fillOpacity: 0.3 } 
+    }).addTo(map);
+
+    // Zoom to the ward
+    const bounds = layer ? layer.getBounds() : L.geoJSON(feature).getBounds();
+    map.flyToBounds(bounds, { padding: [50, 50], duration: 1 });
+
+    // 2. Extract the Ward Number (This matches your GeoJSON's "Ward_No": 22)
+    const wardId = feature.properties.Ward_No; 
+    
+    // Update Sidebar basics immediately
+    locationTitle.innerText = feature.properties.WardName || "Unknown Ward";
+    aqiText.innerText = "Analyzing Air Quality...";
+    locationSub.innerText = `Ward Number: ${wardId} | AC: ${feature.properties.AC_Name}`;
+    infoPanel.classList.remove('translate-x-full'); // Slide in the panel
+
+    if (wardId) {
+        try {
+            // 3. Call your friend's specific API route
+            // Using the 'ngrok-skip-browser-warning' header is essential for ngrok links
+            const response = await fetch(`https://vito-glabellar-semijudicially.ngrok-free.dev/api/ward-analysis/${wardId}`, {
+                headers: { 'ngrok-skip-browser-warning': 'true' }
+            });
+            
+            const data = await response.json();
+
+            if (data.success) {
+                // 4. Update the UI with real data from the backend
+                updateWardUI(data);
+                
+                // 5. Update Charts (If you have them)
+                if (window.updateCharts && data.history_24h) {
+                    window.updateCharts(data.history_24h, data.forecast_24h);
+                }
+            } else {
+                aqiText.innerText = "Data Unavailable";
+                console.error("Backend Error:", data.message);
+            }
+        } catch (err) {
+            console.error("Fetch failed:", err);
+            aqiText.innerText = "Offline";
         }
-        pm25 = nearest.station.pm25 ?? pm25;
-        pm10 = nearest.station.pm10 ?? pm10;
-      }
     }
-  }
+}
 
-  locationTitle.innerText = name;
-  locationSub.innerText = props.zone || props.subname || (derivedFrom ? `Derived: ${derivedFrom}` : '');
-  aqiText.innerText = aqi != null ? `AQI: ${aqi} - ${getAQILabel(aqi)}` : 'AQI: -- (no live data)';
+function updateWardUI(data) {
+    const aqi = data.current_aqi;
+    const pollutants = data.raw_pollutants;
+    const aiAnalysis = data.analysis;
+
+    // Update AQI and Color
+    aqiText.innerText = `AQI: ${aqi}`;
+    aqiText.style.color = getAQIColor(aqi);
+    
+    // Update Pollutant numbers
+    document.getElementById('pm25-val').innerText = pollutants?.pm2_5?.toFixed(1) || '--';
+    document.getElementById('pm10-val').innerText = pollutants?.pm10?.toFixed(1) || '--';
+    
+    // Update AI Insights (if your UI has these IDs)
+    if (aiAnalysis && !aiAnalysis.error) {
+        document.getElementById('health-advice').innerText = aiAnalysis.impact_summary;
+        document.getElementById('cig-count').innerText = `Equal to smoking ${aiAnalysis.cigarettes_count} cigarettes today.`;
+    }
+}
+
+// Helper Function: Updates the sidebar text
+function updateWardUI(geoProps, backendData) {
+  // Priority: 1. Backend Data, 2. GeoJSON Properties, 3. Default Dash
+  const aqi = backendData?.aqi || geoProps.aqi;
+  const pm25 = backendData?.pm25 || geoProps.pm25 || '--';
+  const pm10 = backendData?.pm10 || geoProps.pm10 || '--';
+  const advisory = backendData?.advisory || advisoryForAQI(aqi);
+
+  locationSub.innerText = backendData ? `Source: Live Ward Station` : `Source: ${geoProps._aqi_method || 'Calculated'}`;
+  aqiText.innerText = aqi ? `AQI: ${aqi} - ${getAQILabel(aqi)}` : 'AQI: --';
   aqiText.style.color = getAQIColor(aqi);
   pm25El.innerText = pm25;
   pm10El.innerText = pm10;
-  advisoryEl.innerText = advisoryForAQI(aqi);
-  infoPanel.classList.remove('translate-x-full');
+  advisoryEl.innerText = advisory;
 }
-
-// Point-in-polygon
-function findWardAtLatLng(lat, lng) {
-  if (!wardsGeo) return null;
-  const pt = turf.point([lng, lat]);
-  for (const feat of wardsGeo.features) {
-    try {
-      if (turf.booleanPointInPolygon(pt, feat)) return feat;
-    } catch (err) {
-      // skip malformed
-    }
-  }
-  return null;
-}
-
-// Helper to find layer for feature
-function findLayerForFeature(feature) {
-  if (!wardsLayer) return null;
-  let found = null;
-  wardsLayer.eachLayer(layer => {
-    if (!layer.feature) return;
-    if (feature.id && layer.feature.id && feature.id === layer.feature.id) {
-      found = layer;
-    } else if (JSON.stringify(layer.feature.geometry) === JSON.stringify(feature.geometry)) {
-      found = layer;
-    }
-  });
-  return found;
-}
-
-// Temp marker for search
-function placeTempMarker(coords, title) {
-  if (tempSearchMarker) {
-    try { map.removeLayer(tempSearchMarker); } catch(e){}
-    tempSearchMarker = null;
-  }
-  tempSearchMarker = L.circleMarker(coords, {
-    radius: 9, color: '#ffffff', fillColor: '#000000', fillOpacity: 0.6, weight: 2, dashArray: '3'
-  }).addTo(map);
-  if (title) tempSearchMarker.bindPopup(title).openPopup();
-}
-
-// Geocode query
-async function geocodeQuery(query) {
-  const qs = encodeURIComponent(query + ', Delhi, India');
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${qs}`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error('Geocoding failed');
-  return await resp.json();
-}
-
-// Search event handler
-let searchTimeout = null;
-searchInput.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(handleSearch, 300);
-});
-searchBtn.addEventListener('click', () => {
-  clearTimeout(searchTimeout);
-  handleSearch();
-});
-
-async function handleSearch() {
-  const q = searchInput.value.trim();
-  if (!q) return;
-  try {
-    // local ward search
-    if (wardsGeo) {
-      const qLower = q.toLowerCase();
-      const local = wardsGeo.features.find(f => {
-        const name = (f.properties?.name || f.properties?.WARD_NAME || '').toString().toLowerCase();
-        return name && name.includes(qLower);
-      });
-      if (local) {
-        const layer = findLayerForFeature(local);
-        if (layer) {
-          map.fitBounds(layer.getBounds(), { padding: [12,12] });
-          onWardSelected(local, layer);
-        } else {
-          const c = turf.centerOfMass(local).geometry.coordinates;
-          map.setView([c[1], c[0]], 13);
-          onWardSelected(local, null);
-        }
-        return;
-      }
-    }
-    // geocode fallback
-    showLoader('Geocoding…');
-    const results = await geocodeQuery(q);
-    hideLoader();
-    if (!results || results.length === 0) {
-      alert('No geocoding results found.');
-      return;
-    }
-    const r = results[0];
-    const lat = parseFloat(r.lat);
-    const lon = parseFloat(r.lon);
-    map.flyTo([lat, lon], 13, { animate: true });
-    placeTempMarker([lat, lon], r.display_name);
-    const feat = findWardAtLatLng(lat, lon);
-    if (feat) {
-      const layer = findLayerForFeature(feat);
-      if (layer) { map.fitBounds(layer.getBounds(), { padding: [12,12] }); onWardSelected(feat, layer); }
-      else { onWardSelected(feat, null); }
-    } else {
-      // outside ward boundary
-      const nearest = findNearestAQIStation(lat, lon);
-      // update info panel
-      locationTitle.innerText = 'Clicked location';
-      locationSub.innerText = `${lat.toFixed(4)}, ${lon.toFixed(4)} — outside ward boundary`;
-      if (nearest && nearest.station) {
-        const s = nearest.station;
-        let aqiVal = s.aqi != null ? clampAQI(s.aqi) : (s.pm25 != null ? clampAQI(pm25ToAQI(s.pm25)) : null);
-        aqiText.innerText = aqiVal != null ? `AQI: ${aqiVal} - ${getAQILabel(aqiVal)}` : 'AQI: --';
-        aqiText.style.color = getAQIColor(aqiVal);
-        pm25El.innerText = s.pm25 ?? '--';
-        pm10El.innerText = s.pm10 ?? '--';
-        advisoryEl.innerText = getHealthAdvisory(aqiVal);
-      } else {
-        aqiText.innerText = 'AQI: --';
-        pm25El.innerText = '--';
-        pm10El.innerText = '--';
-        advisoryEl.innerText = 'No nearby AQI station available.';
-      }
-      infoPanel.classList.remove('translate-x-full');
-    }
-  } catch (err) {
-    hideLoader();
-    console.error(err);
-    alert('Search failed — see console.');
-  }
-}
-
-// Bind search button
-searchBtn.addEventListener('click', () => searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })));
-
-function findNearestAQIStation(lat, lng) {
-  if (!aqiStations || !aqiStations.length) return null;
-  let nearest = null;
-  let minDist = Infinity;
-  aqiStations.forEach(s => {
-    const d = turf.distance(turf.point([s.lon, s.lat]), turf.point([lng, lat]), { units: 'kilometers' });
-    if (d < minDist) {
-      minDist = d;
-      nearest = s;
-    }
-  });
-  return nearest;
-}
-
-// Map click to inspect
 map.on('click', (e) => {
   const { lat, lng } = e.latlng;
-  placeTempMarker([lat, lng], 'Clicked location');
+  placeTempMarker([lat, lng], 'Selected Location');
+  
   const feat = findWardAtLatLng(lat, lng);
   if (feat) {
+    // UPDATED: No need to call fitBounds here anymore, 
+    // onWardSelected now handles the smooth flying/zooming.
     const layer = findLayerForFeature(feat);
-    if (layer) {
-      map.fitBounds(layer.getBounds(), { padding: [12,12] });
-      onWardSelected(feat, layer);
-    } else {
-      onWardSelected(feat, null);
-    }
+    onWardSelected(feat, layer);
   } else {
-    const nearest = findNearestAQIStation(lat, lng);
-    locationTitle.innerText = 'Clicked location';
-    locationSub.innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)} — nearest AQI station`;
-    if (nearest) {
-      const aqi = nearest.aqi;
-      aqiText.innerText = `AQI: ${aqi}`;
-      aqiText.style.color = getAQIColor(aqi);
-      pm25El.innerText = nearest.pm25 ?? '--';
-      pm10El.innerText = nearest.pm10 ?? '--';
-      advisoryEl.innerText = getHealthAdvisory(aqi);
-    } else {
-      aqiText.innerText = 'AQI: --';
-      pm25El.innerText = '--';
-      pm10El.innerText = '--';
-      advisoryEl.innerText = 'No AQI data available.';
-    }
+    // Outside ward click - Fly to the point and show IDW data
+    map.flyTo([lat, lng], map.getZoom() < 12 ? 13 : map.getZoom(), {
+      duration: 0.8
+    });
+
+    const res = getInterpolatedAQI(lat, lng, aqiStations);
+    locationTitle.innerText = 'Outside Ward Boundary';
+    locationSub.innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const a = res ? res.aqi : null;
+    aqiText.innerText = a ? `AQI: ${a} (Interpolated)` : 'AQI: --';
+    aqiText.style.color = getAQIColor(a);
+    advisoryEl.innerText = advisoryForAQI(a);
     infoPanel.classList.remove('translate-x-full');
   }
 });
 
-// Close panel button
-document.getElementById('closePanel').addEventListener('click', () => {
-  infoPanel.classList.add('translate-x-full');
-});
+/* ================== HELPERS & INITIALIZATION ================== */
 
-// Add Live AQ control
-function addLiveAQRefreshButton() {
-  const ctrl = L.control({ position: 'topright' });
-  ctrl.onAdd = function () {
-    const div = L.DomUtil.create('div', 'glass p-2 rounded text-sm');
-    div.style.cursor = 'pointer';
-    div.style.minWidth = '120px';
-    div.innerHTML = `<div style="font-weight:600;margin-bottom:4px">Live AQ</div><div id="liveAQStatus" style="font-size:12px">Refresh</div>`;
-    L.DomEvent.on(div, 'click', async (ev) => {
-      L.DomEvent.stopPropagation(ev);
-      const status = document.getElementById('liveAQStatus');
-      status.innerText = 'Loading…';
-      await integrateLiveAQIntoWards();
-      status.innerText = 'Updated';
-      setTimeout(() => { status.innerText = 'Refresh'; }, 2000);
-    });
-    return div;
-  };
-  ctrl.addTo(map);
+function findWardAtLatLng(lat, lng) {
+  if (!wardsGeo) return null;
+  const pt = turf.point([lng, lat]);
+  return wardsGeo.features.find(f => pointInsideFeature(pt, f));
 }
 
-// Initialization sequence
-(async function init() {
-  try {
-    showLoader('Preparing ward shapes...');
-    const gj = await loadWardShapes();
-    if (!gj || !gj.features || gj.features.length === 0) {
-      hideLoader();
-      alert('Could not load ward shapes automatically. Please put delhi_wards.geojson or delhi_ward.kml in the same folder and reload.');
-      return;
-    }
-    renderWardsGeoJSON(gj);
+function findLayerForFeature(feature) {
+  if (!wardsLayer) return null;
+  let found = null;
+  wardsLayer.eachLayer(l => {
+    if (JSON.stringify(l.feature.geometry) === JSON.stringify(feature.geometry)) found = l;
+  });
+  return found;
+}
+
+function placeTempMarker(coords, title) {
+  if (tempSearchMarker) map.removeLayer(tempSearchMarker);
+  tempSearchMarker = L.circleMarker(coords, { radius: 8, color: '#fff', fillColor: '#000', fillOpacity: 0.5 }).addTo(map);
+}
+
+async function handleSearch() {
+  const q = searchInput.value.trim();
+  if (!q) return;
+  const ql = q.toLowerCase();
+  const local = wardsGeo?.features.find(f => (f.properties.name || '').toLowerCase().includes(ql));
+  
+  if (local) {
+    const layer = findLayerForFeature(local);
+    if (layer) map.fitBounds(layer.getBounds());
+    onWardSelected(local, null);
+  } else {
+    showLoader('Searching...');
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q + ', Delhi')}`);
+    const res = await resp.json();
     hideLoader();
+    if (res.length) {
+      const { lat, lon } = res[0];
+      const plat = parseFloat(lat), plon = parseFloat(lon);
+      map.flyTo([plat, plon], 13, {
+    animate: true,
+    duration: 0.8, // Duration in seconds
+    easeLinearity: 0.1
+});
+      const ward = findWardAtLatLng(plat, plon);
+      if (ward) onWardSelected(ward, null);
+    }
+  }
+}
 
-    // Fit map to wards
-    const bounds = wardsLayer.getBounds();
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [20,20] });
+searchInput.addEventListener('keydown', (e) => e.key === 'Enter' && handleSearch());
+searchBtn.addEventListener('click', handleSearch);
 
-    // Add live AQ control
-    addLiveAQRefreshButton();
-
-    // Phase 2: integrate live AQ
+async function loadWardShapes() {
+  const urls = ['delhi_wards.geojson', 'https://raw.githubusercontent.com/HindustanTimesLabs/shapefiles/master/city/delhi/ward/delhi_ward.kml'];
+  for (const url of urls) {
     try {
-      showLoader('Fetching live AQ and assigning to wards...');
-      await integrateLiveAQIntoWards();
-    } catch (err) {
-      console.warn('Initial live AQ integration failed', err);
-      liveAQStatusBar.innerText = 'Live AQ fetch failed — using cached data if available';
-    } finally {
-      hideLoader();
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      if (url.endsWith('.kml')) {
+        const text = await r.text();
+        return toGeoJSON.kml(new DOMParser().parseFromString(text, 'text/xml'));
+      }
+      return await r.json();
+    } catch (e) {}
+  }
+  return null;
+}
+
+function renderWardsGeoJSON(gj) {
+  wardsGeo = gj;
+  wardsGeo.features.forEach((f, i) => {
+    if (!f.properties) f.properties = {};
+    f.properties.name = f.properties.name || f.properties.WARD_NAME || `Ward ${i+1}`;
+  });
+
+  wardsLayer = L.geoJSON(wardsGeo, {
+    style: { color: '#94a3b8', weight: 1, opacity: 0.5, fillColor: '#374151', fillOpacity: 0.1 },
+    onEachFeature: (f, l) => {
+      l.on('click', (e) => { L.DomEvent.stopPropagation(e); onWardSelected(f, l); });
     }
-  } catch (err) {
-    hideLoader();
-    console.error('Initialization failed', err);
-    alert('Initialization failed. See console for details.');
+  }).addTo(map);
+}
+
+(async function init() {
+  const gj = await loadWardShapes();
+  if (gj) {
+    renderWardsGeoJSON(gj);
+    map.fitBounds(wardsLayer.getBounds());
+    await integrateLiveAQIntoWards();
+  } else {
+    alert('Ward data not found.');
   }
 })();
 
+document.getElementById('closePanel').addEventListener('click', () => infoPanel.classList.add('translate-x-full'));
+
 // End of script
+
+
+/* ================== UI INTERACTION LOGIC ================== */
+
+// 1. Select the Elements
+const uiTabBtns = document.querySelectorAll('.ui-tab-btn');
+const citizenFloat = document.getElementById('citizenFloat');
+const citizenFloatTitle = document.getElementById('citizenFloatTitle');
+const citizenFloatBody = document.getElementById('citizenFloatBody');
+const citizenFloatClose = document.getElementById('citizenFloatClose');
+
+// 2. Define Content for each button
+const tabData = {
+  staySafe: {
+    title: "Health Advisory",
+    body: `
+      <div class="space-y-3 text-slate-300">
+        <p><strong class="text-emerald-400">Primary Recommendation:</strong> Limit outdoor exposure. Susceptible groups (children, elderly, those with respiratory conditions) should remain indoors.</p>
+        <ul class="list-disc pl-5 space-y-1 text-slate-400 marker:text-emerald-500">
+          <li><strong class="text-emerald-400">Protective Equipment:</strong> N95/N99 respirators are recommended for unavoidable outdoor travel.</li>
+          <li><strong class="text-emerald-400">Indoor Air Quality:</strong> Utilize air purification systems where available. Keep ventilation points sealed during peak pollution hours.</li>
+          <li><strong class="text-emerald-400">Physical Exertion:</strong> Avoid strenuous activities outdoors to minimize inhalation of particulate matter.</li>
+        </ul>
+      </div>`
+  },
+  forecast: {
+    title: "Meteorological Outlook",
+    body: `
+      <div class="space-y-3 text-slate-300">
+        <p><strong class="text-emerald-400">Status:</strong> Severe Air Quality</p>
+        <p class="text-slate-400">Current meteorological conditions indicate low wind speeds hindering pollutant dispersion. The Ventilation Index is likely to remain below 2,500 m²/s for the next 24 hours, suggesting continued accumulation of pollutants.</p>
+        <p class="text-xs text-emerald-500/70 mt-2">Source: IMD / IITM Analysis</p>
+      </div>`
+  },
+  actions: {
+    title: "Public Directives",
+    body: `
+      <div class="space-y-3 text-slate-300">
+        <p>Citizens are requested to adhere to the following measures to assist in pollution mitigation:</p>
+        <ul class="list-disc pl-5 space-y-1 text-slate-400 marker:text-emerald-500">
+          <li><strong class="text-emerald-400">Vehicular:</strong> Utilize public transport or carpooling. Ensure valid PUC certification.</li>
+          <li><strong class="text-emerald-400">Dust Control:</strong> Sprinkle water on premises to suppress dust resuspension.</li>
+          <li><strong class="text-emerald-400">Waste Management:</strong> Strictly no burning of biomass or solid waste. Report violations immediately.</li>
+        </ul>
+      </div>`
+  },
+  complaint: {
+    title: "Grievance Redressal",
+    body: `
+      <div class="space-y-3 text-slate-300">
+        <p>Report environmental violations (garbage burning, construction dust, industrial emissions) directly to the Central Control Room.</p>
+        <div class="bg-slate-900/50 p-3 rounded border border-emerald-500/30">
+          <p><strong class="text-emerald-400">Green Delhi Helpline:</strong> <a href="tel:1800118600" class="text-emerald-300 hover:underline">1800-11-8600</a></p>
+          <p class="mt-1"><strong class="text-emerald-400">Web Portal:</strong> <span class="text-slate-300">greendelhi.gov.in</span></p>
+        </div>
+      </div>`
+  },
+  policies: {
+    title: "Regulatory Measures (GRAP)",
+    body: `
+      <div class="space-y-3 text-slate-300">
+        <p><strong class="text-emerald-400">Active Stage: GRAP Stage-IV (Severe+)</strong></p>
+        <ul class="list-disc pl-5 space-y-1 text-slate-400 marker:text-emerald-500">
+          <li><strong class="text-emerald-400">Transport:</strong> Entry of heavy goods vehicles (except essentials) is prohibited.</li>
+          <li><strong class="text-emerald-400">Construction:</strong> Total ban on C&D activities, including linear public projects.</li>
+          <li><strong class="text-emerald-400">Institutions:</strong> Schools closed for physical classes (up to Class IX).</li>
+          <li><strong class="text-emerald-400">Workforce:</strong> 50% capacity for public/private offices recommended.</li>
+        </ul>
+      </div>`
+  },
+  govTask: {
+    title: "Municipal Deployment Status",
+    body: `
+      <div class="space-y-3 text-slate-300">
+        <p><strong class="text-emerald-400">Real-time Action Report (Daily):</strong></p>
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="bg-slate-900/50 p-2 rounded border border-emerald-500/30">
+            <div class="text-lg font-bold text-emerald-400">450</div>
+            <div class="text-xs text-slate-400">Water Sprinklers</div>
+          </div>
+          <div class="bg-slate-900/50 p-2 rounded border border-emerald-500/30">
+            <div class="text-lg font-bold text-emerald-400">12</div>
+            <div class="text-xs text-slate-400">Anti-Smog Guns</div>
+          </div>
+        </div>
+        <p class="text-xs text-emerald-500/70 mt-2">Data updated: 08:00 AM IST</p>
+      </div>`
+  }
+};
+
+// 3. Add Click Listeners to Open the Panel
+uiTabBtns.forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    const key = btn.getAttribute('data-key');
+    const data = tabData[key];
+
+    if (data) {
+      // Set content
+      citizenFloatTitle.innerHTML = data.title;
+      citizenFloatBody.innerHTML = data.body;
+
+      // Show Panel (Remove hidden, then slide in)
+      citizenFloat.classList.remove('hidden');
+      
+      // Small timeout to allow the browser to process the 'hidden' removal before animating
+      setTimeout(() => {
+        citizenFloat.classList.remove('translate-x-[160%]');
+      }, 10);
+    }
+  });
+});
+
+// 4. Close Button Logic
+citizenFloatClose.addEventListener('click', () => {
+  // Slide out
+  citizenFloat.classList.add('translate-x-[160%]');
+  
+  // Wait for transition (300ms) then hide
+  setTimeout(() => {
+    citizenFloat.classList.add('hidden');
+  }, 300);
+});
+
 </script>
 </body>
 </html>
