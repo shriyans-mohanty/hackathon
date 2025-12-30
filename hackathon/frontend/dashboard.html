@@ -66,7 +66,76 @@
   <button onclick="window.location.href='index.html'" class="absolute top-6 left-6 z-[1400] px-4 py-2 rounded-full border border-white/30 hover:bg-white hover:text-black transition">
     ← Back to Home
   </button>
+<style>
+    /* ... your existing styles ... */
 
+    /* 🟢 PASTE THIS INSIDE THE <style> TAG */
+    
+    /* Custom Blinking Glow Animation */
+    @keyframes pulse-red {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .live-indicator {
+        background-color: #ef4444; /* Tailwind red-500 */
+        border-radius: 50%;
+        animation: pulse-red 2s infinite;
+    }
+
+    /* Smooth Needle Movement */
+    #aqiNeedle {
+        transform: translateX(-50%);
+        transition: left 1s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 10;
+    }
+
+    #bigAQI {
+        transition: color 0.5s ease;
+    }
+</style>
+
+<div id="leftWrapper" class="fixed left-6 top-1/2 -translate-y-1/2 z-[1500] flex flex-col gap-4">
+    <div id="leftStatsPanel" class="w-80 glass p-7 rounded-3xl border-none shadow-2xl">
+        <div class="flex items-center gap-3 mb-3">
+            <span id="liveDot" class="w-3 h-3 live-indicator"></span>
+            <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">Live Delhi Avg</span>
+        </div>
+
+        <div class="flex items-baseline gap-3 mb-2">
+            <h1 id="bigAQI" class="text-7xl font-black leading-none tracking-tighter">---</h1>
+            <span class="text-[10px] text-gray-500 font-bold uppercase">AQI (US)</span>
+        </div>
+
+        <div id="statusBadge" class="inline-block px-4 py-1.5 rounded-lg text-lg font-bold mb-8 transition-colors duration-500">
+            ---
+        </div>
+
+        <div class="space-y-5 mb-8 border-t border-white/5 pt-6">
+            <div class="flex justify-between items-end">
+                <div>
+                    <p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">PM10 Particle</p>
+                    <p class="text-2xl font-medium text-slate-200"><span id="val-pm10">---</span></p>
+                </div>
+                <span class="text-[10px] text-gray-600 font-bold mb-1">µg/m³</span>
+            </div>
+            <div class="flex justify-between items-end">
+                <div>
+                    <p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">PM2.5 Particle</p>
+                    <p class="text-2xl font-medium text-slate-200"><span id="val-pm25">---</span></p>
+                </div>
+                <span class="text-[10px] text-gray-600 font-bold mb-1">µg/m³</span>
+            </div>
+        </div>
+
+        <div class="relative w-full pb-2">
+            <div class="h-1.5 w-full rounded-full flex overflow-hidden bg-white/10">
+                <div class="h-full bg-emerald-500" style="width: 10%"></div> <div class="h-full bg-yellow-400" style="width: 10%"></div> <div class="h-full bg-orange-500" style="width: 20%"></div> <div class="h-full bg-red-500" style="width: 20%"></div>    <div class="h-full bg-purple-600" style="width: 20%"></div> <div class="h-full bg-rose-900" style="width: 20%"></div>   </div>
+            <div id="aqiNeedle" class="absolute top-[-3px] w-3 h-3 bg-white rounded-full border-2 border-black shadow-[0_0_10px_white]" style="left: 0%;"></div>
+        </div>
+    </div>
+</div>
   <!-- Search bar -->
   <div class="absolute top-6 left-1/2 -translate-x-1/2 z-[1400] w-[92%] max-w-xl">
     <div class="relative">
@@ -75,7 +144,7 @@
     </div>
   </div>
 
- <!-- Map container -->
+  <!-- Map container -->
   <div id="map"></div>
 
   <!-- Loading overlay -->
@@ -119,11 +188,16 @@
     <button class="ui-tab-btn" data-key="govTask">MCD Actions</button>
 
   </div>
+  <div id="ciggsEq" class="text-xs text-gray-300 mb-4"></div>
 
   <!-- 🔹 Mandatory advisory for JS -->
   <div class="mt-6">
     <h3 class="font-semibold mb-2">Health Advisory</h3>
     <p id="advisory" class="text-gray-200 text-sm">--</p>
+  </div>
+  <div id="sourceBreakdown" class="mt-6 hidden">
+    <h3 class="font-semibold mb-3 text-emerald-400">🔬 Pollution Sources</h3>
+    <div id="sourceList" class="space-y-2"></div>
   </div>
 
   <!-- 🔹 Close Button -->
@@ -135,25 +209,27 @@
 </div>
 <!-- 💬 FLOATING POPUP PANEL INSIDE MAP -->
 <div id="citizenFloat"
-  class="hidden fixed top-[20%] right-[350px] w-[600px] min-h-[400px]
-         bg-black/95 glass p-8 rounded-xl shadow-[0_0_40px_rgba(16,185,129,0.1)] backdrop-blur-xl
-         border border-emerald-500/20 z-[4000] transition-all duration-300
-         translate-x-[160%] flex flex-col">
+  class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vw] max-w-[1400px] min-h-[65vh]
+         bg-black/95 glass p-10 rounded-2xl shadow-[0_30px_120px_rgba(16,185,129,0.15)] backdrop-blur-xl
+         border border-emerald-500/25 z-[4000] transition-all duration-500 ease-out
+         opacity-0 scale-95 flex flex-col">
 
   <button id="citizenFloatClose"
     class="absolute top-3 right-3 text-gray-300 hover:text-white text-lg">✖</button>
 
-  <h2 id="citizenFloatTitle" class="text-2xl font-bold text-emerald-400 mb-4 tracking-wide drop-shadow-sm"></h2>
+  <h2 id="citizenFloatTitle" class="text-3xl font-bold text-emerald-400 mb-6 tracking-wide drop-shadow-sm"></h2>
 
   <div id="citizenFloatBody"
-       class="text-base leading-relaxed pr-4 overflow-y-auto overflow-x-hidden break-words flex-1"
-       style="max-height: 320px;">
+       class="text-base leading-relaxed pr-2 overflow-y-auto overflow-x-hidden break-words flex-1"
+       style="max-height: 70vh;">
   </div>
 </div>
 
 
   <!-- live status badge -->
   <div id="liveAQStatusBar">AQI: —</div>
+
+
 
 <script>
 /* ================== FULL DASHBOARD SCRIPT WITH SPATIAL INTERPOLATION ================== */
@@ -206,7 +282,10 @@ let wardsLayer = null;
 let selectedHighlight = null;
 let tempSearchMarker = null;
 let aqiStations = [];
+let latestWardAQI = null; 
+let latestWardAI = null;
 const stationLayer = L.layerGroup().addTo(map);
+
 
 function pointInsideFeature(pt, feature) {
   try {
@@ -310,47 +389,87 @@ function getInterpolatedAQI(lat, lon, stations) {
 
 /* ================== BACKEND & DATA PROCESSING ================== */
 
+// Define this globally if you haven't already
+const REMOTE_SERVER_URL = 'https://vito-glabellar-semijudicially.ngrok-free.dev';
+
 async function fetchAQIFromBackend() {
-  const endpoints = ['/api/aqi', 'http://localhost:3000/api/aqi'];
+  // 1. Prepare clean base URLs
+  const remoteBase = REMOTE_SERVER_URL.replace(/\/$/, ''); // Remove trailing slash
+  
+  // 2. Define all possible places your API might be running
+  // Order matters: Try local first (faster), then remote.
+  const endpoints = [
+    '/api/aqi',                           // Relative path (if serving from same origin)
+    'http://localhost:3000/api/aqi',      // Local development
+    `${remoteBase}/api/aqi`               // Remote/Ngrok tunnel
+  ];
+
+  console.log("Attempting to fetch AQI data...");
+
   for (const url of endpoints) {
     try {
-      const r = await fetch(url);
-      if (r.ok) return await r.json();
-    } catch (err) {}
+      // 3. Fetch with the CRITICAL headers included
+      const r = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'ngrok-skip-browser-warning': 'true', // <--- KEEPS THIS from your code
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (r.ok) {
+        const data = await r.json();
+        console.log(`Connected to: ${url}`);
+        return data;
+      }
+    } catch (err) {
+      // Log quietly to avoid console spam, or debug if needed
+      // console.warn(`Skipping ${url}:`, err.message);
+    }
   }
-  throw new Error('All backend endpoints failed');
+
+  throw new Error('All backend endpoints failed to return AQI data.');
+}
+function normalizeToStationPoints(payload) {
+    const points = [];
+    const data = Array.isArray(payload) ? payload : [];
+    
+    data.forEach(item => {
+        let lat = item.lat;
+        let lon = item.lon;
+        if (lat == null || lon == null) return;
+
+        // Convert AQI string to a number
+        let aqiVal = item.aqi ? Number(item.aqi) : null;
+        
+        // 🔴 FIX: If PM values are missing in your JSON, we estimate them
+        // This prevents the "0" showing up on your dashboard
+        let pm25 = item.pm25 || (aqiVal ? estimatePM25(aqiVal) : null);
+        let pm10 = item.pm10 || (aqiVal ? estimatePM10(aqiVal) : null);
+
+        points.push({
+            id: item.uid || `${lat},${lon}`,
+            lat: Number(lat), 
+            lon: Number(lon),
+            aqi: aqiVal,
+            pm25: pm25,
+            pm10: pm10
+        });
+    });
+    return points;
 }
 
-function normalizeToStationPoints(payload) {
-  const points = [];
-  const data = Array.isArray(payload) ? payload : (payload?.results || (payload?.aqi ? [payload] : []));
-  
-  data.forEach(item => {
-    let lat = item.lat ?? item.latitude ?? item.location?.lat ?? item.coordinates?.latitude ?? item.city?.geo?.[0];
-    let lon = item.lon ?? item.longitude ?? item.location?.lon ?? item.coordinates?.longitude ?? item.city?.geo?.[1];
-    if (lat == null || lon == null) return;
+// Helper functions to estimate PM if missing
+function estimatePM25(aqi) {
+    // Basic linear estimation of PM2.5 based on AQI breakpoints
+    if (aqi <= 50) return (aqi / 50) * 12;
+    if (aqi <= 100) return 12 + ((aqi - 50) / 50) * 23;0
+    if (aqi <= 200) return 35 + ((aqi - 100) / 100) * 115;
+    return (aqi / 500) * 250; // Rough estimate for high values
+}
 
-    let aqiVal = item.aqi ?? item.v;
-    let pm25 = item.pm25 ?? item.iaqi?.pm25?.v;
-    let pm10 = item.pm10 ?? item.iaqi?.pm10?.v;
-
-    // OpenAQ fallback
-    if (item.measurements) {
-        item.measurements.forEach(m => {
-            if (m.parameter === 'pm25') pm25 = m.value;
-            if (m.parameter === 'pm10') pm10 = m.value;
-        });
-    }
-
-    points.push({
-      id: item.uid ?? item.location ?? `${lat},${lon}`,
-      lat: Number(lat), lon: Number(lon),
-      aqi: (aqiVal === '-' || aqiVal == null) ? null : Number(aqiVal),
-      pm25: pm25 ? Number(pm25) : null,
-      pm10: pm10 ? Number(pm10) : null
-    });
-  });
-  return points;
+function estimatePM10(aqi) {
+    return estimatePM25(aqi) * 1.6; // Typical PM10 is roughly 1.6x PM2.5 in Delhi
 }
 
 function filterStationsInsideDelhi(stations) {
@@ -379,132 +498,225 @@ async function integrateLiveAQIntoWards() {
   showLoader('Syncing Delhi Air Quality...');
 
   try {
+    // 1. Fetch Data ONCE
     const payload = await fetchAQIFromBackend();
     const allPoints = normalizeToStationPoints(payload);
     aqiStations = filterStationsInsideDelhi(allPoints);
     renderAQIStationsOnMap(aqiStations);
 
-    // Calculate city average as final fallback
-    const validAQIs = aqiStations.map(s => s.aqi ?? pm25ToAQI(s.pm25)).filter(v => v != null);
-    const cityAvg = validAQIs.length ? (validAQIs.reduce((a, b) => a + b, 0) / validAQIs.length) : null;
+    // 2. Calculate City Averages (For the initial Left Panel view)
+    let sumAQI = 0, sumPM25 = 0, sumPM10 = 0;
+    let countAQI = 0, countPM25 = 0, countPM10 = 0;
+    
+    aqiStations.forEach(s => {
+        const a = s.aqi ?? pm25ToAQI(s.pm25);
+        if (a) { sumAQI += a; countAQI++; }
+        if (s.pm25) { sumPM25 += s.pm25; countPM25++; }
+        if (s.pm10) { sumPM10 += s.pm10; countPM10++; }
+    });
 
+    const avgAQI = countAQI ? Math.round(sumAQI / countAQI) : 0;
+    const avgPM25 = countPM25 ? Math.round(sumPM25 / countPM25) : 0;
+    const avgPM10 = countPM10 ? Math.round(sumPM10 / countPM10) : 0;
+
+    // Update Left Panel with City Average immediately
+    updateWardUI({ 
+        aqi: avgAQI, 
+        pm25: avgPM25, 
+        pm10: avgPM10 
+    });
+    
+    liveAQStatusBar.innerText = `Live: Delhi Avg AQI ${avgAQI}`;
+
+    // 3. Interpolate and SAVE data into every Ward Polygon
     wardsGeo.features.forEach(f => {
       const centroid = turf.pointOnFeature(f).geometry.coordinates;
       const result = getInterpolatedAQI(centroid[1], centroid[0], aqiStations);
       
       if (result) {
         f.properties.aqi = result.aqi;
+        // 🟢 NEW: Save estimated PM values into the feature right now
+        f.properties.pm25 = estimatePM25(result.aqi);
+        f.properties.pm10 = estimatePM10(result.aqi);
         f.properties._aqi_method = result.method;
       } else {
-        f.properties.aqi = clampAQI(cityAvg);
+        f.properties.aqi = clampAQI(avgAQI);
+        f.properties.pm25 = avgPM25;
+        f.properties.pm10 = avgPM10;
         f.properties._aqi_method = 'City Average';
       }
     });
 
+    // 4. Color the map
     if (wardsLayer) {
       wardsLayer.eachLayer(layer => {
         const a = layer.feature.properties.aqi;
-        layer.setStyle({ fillColor: getAQIColor(a), fillOpacity: 0.25 });
+        layer.setStyle({ fillColor: getAQIColor(a), fillOpacity: 0.4 });
       });
     }
     
-    liveAQStatusBar.innerText = `Updated: ${new Date().toLocaleTimeString()} • Coverage: 100% via Interpolation`;
   } catch (err) {
     console.error(err);
-    liveAQStatusBar.innerText = 'Live fetch failed. Check backend.';
+    liveAQStatusBar.innerText = 'Live fetch failed.';
   } finally {
     hideLoader();
   }
 }
-
 /* ================== SEARCH & INTERACTION ================== */
 
 /* ================== UPDATED SEARCH & INTERACTION ================== */
 
 
-async function onWardSelected(feature, layer) {
-    // 1. UI: Highlight the selected ward
+
+  async function onWardSelected(feature, layer) {
+    // --- 1. UI HIGHLIGHTING ---
     if (selectedHighlight) map.removeLayer(selectedHighlight);
-    selectedHighlight = L.geoJSON(feature, { 
-        style: { color: '#00eeff', weight: 4, fillOpacity: 0.3 } 
+    selectedHighlight = L.geoJSON(feature, {
+        style: { color: '#00eeff', weight: 4, fillOpacity: 0.3 }
     }).addTo(map);
 
-    // Zoom to the ward
     const bounds = layer ? layer.getBounds() : L.geoJSON(feature).getBounds();
     map.flyToBounds(bounds, { padding: [50, 50], duration: 1 });
 
-    // 2. Extract the Ward Number (This matches your GeoJSON's "Ward_No": 22)
-    const wardId = feature.properties.Ward_No; 
+    // --- 2. PREPARE LOCAL DATA ---
+    const wardId = feature.properties.Ward_No;
+    const wardName = feature.properties.WardName || "Unknown Ward";
     
-    // Update Sidebar basics immediately
-    locationTitle.innerText = feature.properties.WardName || "Unknown Ward";
-    aqiText.innerText = "Analyzing Air Quality...";
-    locationSub.innerText = `Ward Number: ${wardId} | AC: ${feature.properties.AC_Name}`;
-    infoPanel.classList.remove('translate-x-full'); // Slide in the panel
+    // Set global AQI immediately for the tabs
+    latestWardAQI = feature.properties.aqi || 0;
+    latestWardAI = null; // Clear previous ward's AI data
 
+    if (typeof locationTitle !== 'undefined') locationTitle.innerText = wardName;
+    if (typeof locationSub !== 'undefined') locationSub.innerText = `Ward Number: ${wardId} | AC: ${feature.properties.AC_Name}`;
+    if (typeof infoPanel !== 'undefined') infoPanel.classList.remove('translate-x-full');
+
+    const localData = {
+        aqi: latestWardAQI,
+        pm25: feature.properties.pm25 || 0,
+        pm10: feature.properties.pm10 || 0,
+        analysis: null
+    };
+
+    // Render immediately
+    updateWardUI(localData);
+
+    // --- 3. FETCH & MERGE ---
     if (wardId) {
         try {
-            // 3. Call your friend's specific API route
-            // Using the 'ngrok-skip-browser-warning' header is essential for ngrok links
-            const response = await fetch(`https://vito-glabellar-semijudicially.ngrok-free.dev/api/ward-analysis/${wardId}`, {
+            const baseUrl = REMOTE_SERVER_URL.replace(/\/$/, '');
+            const response = await fetch(`${baseUrl}/api/ward-analysis/${wardId}`, {
                 headers: { 'ngrok-skip-browser-warning': 'true' }
             });
-            
+
             const data = await response.json();
 
             if (data.success) {
-                // 4. Update the UI with real data from the backend
-                updateWardUI(data);
-                
-                // 5. Update Charts (If you have them)
+                // ✅ CORRECT PLACE TO SAVE DATA GLOBALLY
+                latestWardAI = data.analysis; 
+
+                const mergedData = {
+                    aqi: latestWardAQI, 
+                    pm25: data.raw_pollutants?.pm2_5 || localData.pm25,
+                    pm10: data.raw_pollutants?.pm10 || localData.pm10,
+                    analysis: data.analysis 
+                };
+
+                updateWardUI(mergedData);
+
                 if (window.updateCharts && data.history_24h) {
                     window.updateCharts(data.history_24h, data.forecast_24h);
                 }
-            } else {
-                aqiText.innerText = "Data Unavailable";
-                console.error("Backend Error:", data.message);
             }
         } catch (err) {
-            console.error("Fetch failed:", err);
-            aqiText.innerText = "Offline";
+            console.error("Background fetch failed:", err);
         }
     }
 }
-
 function updateWardUI(data) {
-    const aqi = data.current_aqi;
-    const pollutants = data.raw_pollutants;
-    const aiAnalysis = data.analysis;
+    // 1. Extract Values
+    const aqi = data.aqi || 0;
+    const pm25 = data.pm25 || 0;
+    const pm10 = data.pm10 || 0;
+    const aiAnalysis = data.analysis || null;
 
-    // Update AQI and Color
-    aqiText.innerText = `AQI: ${aqi}`;
-    aqiText.style.color = getAQIColor(aqi);
-    
-    // Update Pollutant numbers
-    document.getElementById('pm25-val').innerText = pollutants?.pm2_5?.toFixed(1) || '--';
-    document.getElementById('pm10-val').innerText = pollutants?.pm10?.toFixed(1) || '--';
-    
-    // Update AI Insights (if your UI has these IDs)
-    if (aiAnalysis && !aiAnalysis.error) {
-        document.getElementById('health-advice').innerText = aiAnalysis.impact_summary;
-        document.getElementById('cig-count').innerText = `Equal to smoking ${aiAnalysis.cigarettes_count} cigarettes today.`;
+    // 2. Visual Colors/Labels
+    const color = getAQIColor(aqi);
+    const label = getAQILabel(aqi);
+
+    // --- LEFT DASHBOARD UPDATES ---
+    const bigAQI = document.getElementById('bigAQI');
+    if (bigAQI) {
+        bigAQI.innerText = aqi > 0 ? aqi : "---";
+        bigAQI.style.color = color;
     }
-}
 
-// Helper Function: Updates the sidebar text
-function updateWardUI(geoProps, backendData) {
-  // Priority: 1. Backend Data, 2. GeoJSON Properties, 3. Default Dash
-  const aqi = backendData?.aqi || geoProps.aqi;
-  const pm25 = backendData?.pm25 || geoProps.pm25 || '--';
-  const pm10 = backendData?.pm10 || geoProps.pm10 || '--';
-  const advisory = backendData?.advisory || advisoryForAQI(aqi);
+    const badge = document.getElementById('statusBadge');
+    if (badge) {
+        badge.innerText = label;
+        badge.style.color = color;
+        badge.style.backgroundColor = color + '22';
+        badge.style.borderColor = color + '44';
+    }
 
-  locationSub.innerText = backendData ? `Source: Live Ward Station` : `Source: ${geoProps._aqi_method || 'Calculated'}`;
-  aqiText.innerText = aqi ? `AQI: ${aqi} - ${getAQILabel(aqi)}` : 'AQI: --';
-  aqiText.style.color = getAQIColor(aqi);
-  pm25El.innerText = pm25;
-  pm10El.innerText = pm10;
-  advisoryEl.innerText = advisory;
+    const needle = document.getElementById('aqiNeedle');
+    if (needle) {
+        const percentage = Math.max(0, Math.min((aqi / 500) * 100, 100));
+        needle.style.left = `${percentage}%`;
+    }
+
+    // --- RIGHT INFO PANEL UPDATES ---
+    // Handle Text elements safely
+    if (typeof aqiText !== 'undefined') {
+        aqiText.innerText = `AQI: ${aqi > 0 ? aqi : '--'} - ${label}`;
+        aqiText.style.color = color;
+    }
+
+    // Handle PM Values (Support various ID naming conventions)
+    const pm25Val = pm25 > 0 ? Number(pm25).toFixed(1) : '--';
+    const pm10Val = pm10 > 0 ? Number(pm10).toFixed(1) : '--';
+
+    const pm25Targets = ['val-pm25', 'pm25', 'pm25El']; // IDs to try
+    pm25Targets.forEach(id => {
+        const el = document.getElementById(id) || (typeof window[id] !== 'undefined' ? window[id] : null);
+        if (el && el instanceof HTMLElement) el.innerText = pm25Val;
+    });
+
+    const pm10Targets = ['val-pm10', 'pm10', 'pm10El'];
+    pm10Targets.forEach(id => {
+        const el = document.getElementById(id) || (typeof window[id] !== 'undefined' ? window[id] : null);
+        if (el && el instanceof HTMLElement) el.innerText = pm10Val;
+    });
+
+    // --- ADVISORY & CIGARETTES LOGIC ---
+    // 1. Identify the container
+    const advisoryElement = document.getElementById('advisory') || (typeof advisoryEl !== 'undefined' ? advisoryEl : null);
+    const cigDiv = document.getElementById('ciggsEq'); // Standalone cigarette div if exists
+
+    if (advisoryElement) {
+        if (aiAnalysis && !aiAnalysis.error) {
+            // CASE A: BACKEND DATA IS HERE
+            const cigarettes = aiAnalysis.cigarettes_count || '0';
+            const impact = aiAnalysis.impact_summary || 'Detailed analysis available.';
+            
+            // Rich HTML Advisory
+            advisoryElement.innerHTML = `
+                <div class="space-y-2">
+                    <p class="font-semibold text-emerald-400">⚠️ Cigarette Equivalent</p>
+                    <p class="text-sm">Breathing this air = smoking <strong>${cigarettes}</strong> cigarettes today.</p>
+                    <p class="text-xs text-gray-400 mt-2">${impact}</p>
+                </div>
+            `;
+            
+            // Update standalone div if it exists
+            if (cigDiv) cigDiv.innerText = `Air in the selected ward is equivalent to smoking ${cigarettes} cigarettes a day.`;
+        } else {
+            // CASE B: LOCAL DATA ONLY (Fallback)
+            advisoryElement.innerText = advisoryForAQI(aqi);
+            
+            // Clear cigarette div since we don't know the count yet
+            if (cigDiv) cigDiv.innerText = ""; 
+        }
+    }
 }
 map.on('click', (e) => {
   const { lat, lng } = e.latlng;
@@ -633,7 +845,6 @@ document.getElementById('closePanel').addEventListener('click', () => infoPanel.
 
 // End of script
 
-
 /* ================== UI INTERACTION LOGIC ================== */
 
 // 1. Select the Elements
@@ -727,34 +938,165 @@ uiTabBtns.forEach(btn => {
   btn.addEventListener('click', (e) => {
     const key = btn.getAttribute('data-key');
     const data = tabData[key];
-
-    if (data) {
-      // Set content
-      citizenFloatTitle.innerHTML = data.title;
-      citizenFloatBody.innerHTML = data.body;
-
-      // Show Panel (Remove hidden, then slide in)
-      citizenFloat.classList.remove('hidden');
+    let title = data?.title || '';
+    let body = data?.body || '';
+if (key === 'staySafe') {
+      title = 'Health Advisory';
+      const a = latestWardAQI;
+      const ai = latestWardAI;
       
-      // Small timeout to allow the browser to process the 'hidden' removal before animating
-      setTimeout(() => {
-        citizenFloat.classList.remove('translate-x-[160%]');
-      }, 10);
+      // Check if friend's AI data exists to show the cigarette count
+      if (ai && !ai.error) {
+        body = `
+          <div class="space-y-4 text-slate-300">
+            <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl">
+              <p class="text-emerald-400 font-bold mb-1">⚠️ Cigarette Equivalent</p>
+              <p class="text-2xl font-bold text-white">Breathing this air is like smoking <strong>${ai.cigarettes_count}</strong> cigarettes today.</p>
+            </div>
+            <div class="space-y-2">
+              <p class="font-semibold text-emerald-400">Health Impact Summary:</p>
+              <p class="text-sm leading-relaxed">${ai.impact_summary}</p>
+            </div>
+          </div>`;
+      } else {
+        // Fallback to your original logic if AI data isn't loaded yet
+        const label = getAQILabel(a);
+        const advice = advisoryForAQI(a);
+        body = `
+          <div class="space-y-3 text-slate-300">
+            <p><strong class="text-emerald-400">Status:</strong> ${a != null ? `${a} - ${label}` : 'No data'}</p>
+            <p>${advice}</p>
+          </div>`;
+      }
+    } else if (key === 'actions') {
+      title = 'Directives & Mitigation';
+      const ai = latestWardAI;
+      const list = ai?.source_breakdown || [];
+
+      if (list.length) {
+        // Use the detailed mitigation directives from the backend
+        body = `
+          <p class="text-slate-400 mb-4 text-sm">Official directives based on primary pollution sources in this ward:</p>
+          ${list.map(src => `
+            <div class="glass p-4 rounded-xl mb-3 border border-white/5">
+              <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-emerald-400">${src.source}</span>
+                <span class="bg-emerald-500/20 px-2 py-1 rounded text-xs text-emerald-300">${src.contribution_percent}% Contribution</span>
+              </div>
+              <div class="text-sm text-white mb-2"><strong>Directive:</strong> ${src.actionable_mitigation}</div>
+              <div class="text-xs text-emerald-500/70 italic">Expected Impact: ${src.impact_if_removed}</div>
+            </div>
+          `).join('')}`;
+      } else {
+        body = '<div class="text-slate-300">No specific directives available for this ward yet.</div>';
+      }
     }
+    else if (key === 'complaint') {
+      title = 'Grievance Redressal';
+      body = `
+        <div class="space-y-3 text-slate-300">
+          <form id="grievForm" class="space-y-2">
+            <input id="grievText" type="text" class="w-full px-3 py-2 rounded border border-white/20 bg-black/40" placeholder="Describe the non-compliance">
+            <input id="grievImage" type="file" accept="image/*" class="w-full text-xs">
+            <button id="grievSubmit" type="button" class="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white">Submit Complaint</button>
+          </form>
+          <div id="grievStatus" class="text-xs text-slate-400"></div>
+          <div class="mt-4">
+            <h4 class="font-semibold mb-2 text-emerald-400">Submitted Complaints</h4>
+            <div id="grievList" class="space-y-2"></div>
+          </div>
+        </div>`;
+      setTimeout(() => {
+        wireGrievanceUI();
+      }, 0);
+    }
+
+    citizenFloatTitle.innerHTML = title;
+    citizenFloatBody.innerHTML = body;
+    citizenFloat.classList.remove('hidden');
+    setTimeout(() => {
+      citizenFloat.classList.remove('opacity-0', 'scale-95');
+    }, 10);
   });
 });
 
 // 4. Close Button Logic
 citizenFloatClose.addEventListener('click', () => {
-  // Slide out
-  citizenFloat.classList.add('translate-x-[160%]');
-  
-  // Wait for transition (300ms) then hide
+  citizenFloat.classList.add('opacity-0', 'scale-95');
   setTimeout(() => {
     citizenFloat.classList.add('hidden');
-  }, 300);
+  }, 500);
 });
 
+async function wireGrievanceUI() {
+  const textEl = document.getElementById('grievText');
+  const imgEl = document.getElementById('grievImage');
+  const submitBtn = document.getElementById('grievSubmit');
+  const statusEl = document.getElementById('grievStatus');
+  const listEl = document.getElementById('grievList');
+  const baseUrl = REMOTE_SERVER_URL.replace(/\/$/, '');
+
+  async function loadComplaints() {
+    listEl.innerHTML = 'Loading...';
+    try {
+      const r = await fetch(`${baseUrl}/api/grievances`);
+      const items = r.ok ? await r.json() : [];
+      listEl.innerHTML = items.length ? items.map(it => `
+        <div class="glass p-3 rounded flex justify-between items-center">
+          <div class="text-xs">
+            <div class="font-medium">${it.description || 'No description'}</div>
+            ${it.image_url ? `<a href="${it.image_url}" target="_blank" class="text-emerald-400 underline">View Image</a>` : ''}
+          </div>
+          <button data-id="${it.id}" class="delGriev px-3 py-1 text-xs rounded bg-red-600 hover:bg-red-700 text-white">Delete</button>
+        </div>
+      `).join('') : '<div class="text-xs text-slate-400">No complaints found.</div>';
+      listEl.querySelectorAll('.delGriev').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          if (!id) return;
+          btn.disabled = true;
+          try {
+            const d = await fetch(`${baseUrl}/api/grievances/${id}`, { method: 'DELETE' });
+            if (!d.ok) throw new Error('Delete failed');
+            await loadComplaints();
+          } catch (err) {
+            statusEl.innerText = 'Error deleting complaint.';
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (err) {
+      listEl.innerHTML = '<div class="text-xs text-red-400">Failed to load complaints.</div>';
+    }
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    const desc = (textEl.value || '').trim();
+    const file = imgEl.files && imgEl.files[0];
+    if (!desc && !file) {
+      statusEl.innerText = 'Please provide a description or an image.';
+      return;
+    }
+    const fd = new FormData();
+    fd.append('description', desc);
+    if (file) fd.append('image', file);
+    if (latestWardName) fd.append('ward', latestWardName);
+    statusEl.innerText = 'Submitting...';
+    try {
+      const r = await fetch(`${baseUrl}/api/grievances`, { method: 'POST', body: fd });
+      if (!r.ok) throw new Error('Submit failed');
+      statusEl.innerText = 'Submitted successfully.';
+      textEl.value = '';
+      imgEl.value = '';
+      await loadComplaints();
+    } catch (err) {
+      statusEl.innerText = 'Error submitting complaint.';
+    }
+  });
+
+  loadComplaints();
+}
 </script>
 </body>
 </html>
