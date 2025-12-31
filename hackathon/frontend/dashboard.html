@@ -19,7 +19,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.min.js"></script>
 
   <style>
-    html,body { height:100%; margin:0; background:#000; color:#fff; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    html,body { height:100%; margin:0; background:#000; color:#fff; font-family: "Trebuchet MS", Helvetica, sans-serif; }
     #map { height:100vh; width:100vw; }
     .glass { background: rgba(255,255,255,0.06); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); color: #fff; }
     .spinner { border: 3px solid rgba(255,255,255,0.12); border-top: 3px solid rgba(255,255,255,0.95); border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display:inline-block; }
@@ -179,7 +179,7 @@
 
   <!-- 🔹 Govt / Ward Analysis Tabs -->
     <button class="ui-tab-btn" data-key="staySafe">Health Advisory</button>
-    <button class="ui-tab-btn" data-key="forecast">Meteorology</button>
+    <button class="ui-tab-btn" data-key="forecast">AQI Forecast</button>
     <button class="ui-tab-btn" data-key="actions">Directives</button>
 
     <!-- 🧑‍🤝‍🧑 Citizen-Exclusive Features -->
@@ -188,7 +188,13 @@
     <button class="ui-tab-btn" data-key="govTask">MCD Actions</button>
 
   </div>
-  <div id="ciggsEq" class="text-xs text-gray-300 mb-4"></div>
+  <div class="mt-4">
+    <h3 class="font-semibold mb-2">AQI Trend (24h)</h3>
+    <div id="aqiTrendContainer" class="glass rounded-lg p-3">
+      <svg id="historyGraph" width="100%" height="180"></svg>
+    </div>
+    <div id="ciggsEqBelow" class="text-xs text-gray-300 mt-2"></div>
+  </div>
 
   <!-- 🔹 Mandatory advisory for JS -->
   <div class="mt-6">
@@ -349,9 +355,21 @@ function getAQILabel(aqi) {
 
 function advisoryForAQI(aqi) {
   if (aqi == null) return 'No AQI data available.';
-  if (aqi > 200) return 'Avoid outdoor activities. Wear N95 masks if stepping out.';
-  if (aqi > 100) return 'Reduce prolonged outdoor exertion.';
-  return 'Air quality acceptable for most individuals.';
+  const note = 'Note: Vulnerable populations include children (especially under 5 years), elderly people, pregnant women, and those with pre-existing respiratory, cardiovascular, or cerebrovascular conditions.';
+  switch (true) {
+    case aqi <= 50:
+      return 'Low risk to health\nNo special precautions needed for anyone\nAll outdoor activities can be done normally';
+    case aqi <= 100:
+      return 'Minor breathing discomfort may occur in vulnerable populations\nGeneral population requires no special precautions\nVulnerable groups should do less prolonged or strenuous outdoor physical exertion\n' + note;
+    case aqi <= 200:
+      return 'Breathing or health-related discomfort may occur in vulnerable populations\nGeneral population should do less prolonged or strenuous outdoor physical exertion\nVulnerable groups should avoid prolonged or strenuous outdoor physical exertion\n' + note;
+    case aqi <= 300:
+      return 'Healthy people may experience breathing discomfort on prolonged exposure\nVulnerable populations experience breathing or health discomfort on short exposure\nGeneral population should avoid outdoor physical exertion\nVulnerable groups must avoid outdoor physical activities completely\n' + note;
+    case aqi <= 400:
+      return 'Healthy people develop respiratory illness on prolonged exposure\nVulnerable populations experience pronounced respiratory or other illnesses on short exposure\nGeneral population should avoid outdoor physical activities, especially during morning and late evening hours\nVulnerable groups must remain indoors and keep activity levels low\n' + note;
+    default:
+      return 'Healthy people develop respiratory illness even on prolonged exposure\nVulnerable populations experience serious respiratory or other illnesses on short exposure\nGeneral population should avoid outdoor physical activities completely\nVulnerable groups must remain indoors and keep activity levels low at all times\n' + note;
+  }
 }
 
 /* ================== CORE SPATIAL ENGINE (NEW) ================== */
@@ -391,6 +409,7 @@ function getInterpolatedAQI(lat, lon, stations) {
 
 // Define this globally if you haven't already
 const REMOTE_SERVER_URL = 'https://vito-glabellar-semijudicially.ngrok-free.dev';
+const LOCAL_BACKEND_URL = 'http://localhost:3000';
 
 async function fetchAQIFromBackend() {
   // 1. Prepare clean base URLs
@@ -554,6 +573,10 @@ async function integrateLiveAQIntoWards() {
         layer.setStyle({ fillColor: getAQIColor(a), fillOpacity: 0.4 });
       });
     }
+    // Render initial trend if available (uses interpolated AQs saved in features)
+    if (typeof window.renderHistoryTrend === 'function' && Array.isArray(payload?.history_24h)) {
+      window.renderHistoryTrend(payload.history_24h);
+    }
     
   } catch (err) {
     console.error(err);
@@ -610,15 +633,17 @@ async function integrateLiveAQIntoWards() {
 
             const data = await response.json();
 
-            if (data.success) {
+  if (data.success) {
                 // ✅ CORRECT PLACE TO SAVE DATA GLOBALLY
                 latestWardAI = data.analysis; 
+                window.latestForecast24h = data.forecast_24h || [];
 
                 const mergedData = {
                     aqi: latestWardAQI, 
                     pm25: data.raw_pollutants?.pm2_5 || localData.pm25,
                     pm10: data.raw_pollutants?.pm10 || localData.pm10,
                     analysis: data.analysis 
+                    ,history_24h: data.history_24h || []
                 };
 
                 updateWardUI(mergedData);
@@ -690,10 +715,10 @@ function updateWardUI(data) {
     // --- ADVISORY & CIGARETTES LOGIC ---
     // 1. Identify the container
     const advisoryElement = document.getElementById('advisory') || (typeof advisoryEl !== 'undefined' ? advisoryEl : null);
-    const cigDiv = document.getElementById('ciggsEq'); // Standalone cigarette div if exists
+    const cigDiv = document.getElementById('ciggsEqBelow'); // Cigarettes summary below trend
 
-    if (advisoryElement) {
-        if (aiAnalysis && !aiAnalysis.error) {
+  if (advisoryElement) {
+      if (aiAnalysis && !aiAnalysis.error) {
             // CASE A: BACKEND DATA IS HERE
             const cigarettes = aiAnalysis.cigarettes_count || '0';
             const impact = aiAnalysis.impact_summary || 'Detailed analysis available.';
@@ -707,17 +732,85 @@ function updateWardUI(data) {
                 </div>
             `;
             
-            // Update standalone div if it exists
             if (cigDiv) cigDiv.innerText = `Air in the selected ward is equivalent to smoking ${cigarettes} cigarettes a day.`;
         } else {
             // CASE B: LOCAL DATA ONLY (Fallback)
             advisoryElement.innerText = advisoryForAQI(aqi);
             
-            // Clear cigarette div since we don't know the count yet
             if (cigDiv) cigDiv.innerText = ""; 
-        }
-    }
+      }
+  }
+  // Draw 24h history graph if we have AI-backed arrays captured globally
+  if (Array.isArray(data.history_24h) && typeof window.renderHistoryTrend === 'function') {
+    window.renderHistoryTrend(data.history_24h);
+  }
 }
+
+// ============ GRAPH RENDERERS ============
+// Utility: map AQI to Y (0..500 -> 160..20)
+function aqiToY(aqi, h) {
+  const minY = 20, maxY = h - 20;
+  const v = Math.max(0, Math.min(500, Number(aqi || 0)));
+  const pct = v / 500;
+  return maxY - pct * (maxY - minY);
+}
+function hourLabel(ts) {
+  try { return new Date(ts * 1000).getHours().toString().padStart(2, '0'); } catch { return '--'; }
+}
+function renderColoredLine(svgEl, points, w, h) {
+  while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+  const padL = 30, padR = 10;
+  const n = points.length;
+  if (!n) return;
+  const stepX = (w - padL - padR) / Math.max(1, n - 1);
+  for (let i = 0; i < n - 1; i++) {
+    const p1 = points[i], p2 = points[i + 1];
+    const x1 = padL + i * stepX, x2 = padL + (i + 1) * stepX;
+    const y1 = aqiToY(p1.aqi, h), y2 = aqiToY(p2.aqi, h);
+    const stroke = getAQIColor(Math.round((p1.aqi + p2.aqi) / 2));
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    line.setAttribute("stroke", stroke);
+    line.setAttribute("stroke-width", "3");
+    line.setAttribute("stroke-linecap", "round");
+    svgEl.appendChild(line);
+  }
+  // X-axis hour ticks
+  for (let i = 0; i < n; i += 6) {
+    const x = padL + i * stepX;
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", x);
+    t.setAttribute("y", h - 4);
+    t.setAttribute("fill", "#9CA3AF");
+    t.setAttribute("font-size", "10");
+    t.setAttribute("text-anchor", "middle");
+    t.textContent = points[i].label || hourLabel(points[i].time || 0);
+    svgEl.appendChild(t);
+  }
+}
+window.renderHistoryTrend = function(history24h) {
+  try {
+    const svg = document.getElementById('historyGraph');
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const w = Math.max(400, rect.width || 600);
+    const h = Math.max(160, rect.height || 180);
+    const pts = history24h.map(x => ({ aqi: Number(x.aqi || 0), time: x.time }));
+    renderColoredLine(svg, pts, w, h);
+  } catch (e) { /* no-op */ }
+};
+window.renderForecastTrend = function(forecast24h) {
+  try {
+    const svg = document.getElementById('forecastGraph');
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const w = Math.max(400, rect.width || 600);
+    const h = Math.max(160, rect.height || 180);
+    const pts = forecast24h.map(x => ({ aqi: Number(x.aqi || 0), time: x.time }));
+    renderColoredLine(svg, pts, w, h);
+  } catch (e) { /* no-op */ }
+};
 map.on('click', (e) => {
   const { lat, lng } = e.latlng;
   placeTempMarker([lat, lng], 'Selected Location');
@@ -869,12 +962,22 @@ const tabData = {
       </div>`
   },
   forecast: {
-    title: "Meteorological Outlook",
+    title: "AQI Forecast",
     body: `
       <div class="space-y-3 text-slate-300">
-        <p><strong class="text-emerald-400">Status:</strong> Severe Air Quality</p>
-        <p class="text-slate-400">Current meteorological conditions indicate low wind speeds hindering pollutant dispersion. The Ventilation Index is likely to remain below 2,500 m²/s for the next 24 hours, suggesting continued accumulation of pollutants.</p>
-        <p class="text-xs text-emerald-500/70 mt-2">Source: IMD / IITM Analysis</p>
+        <div class="glass rounded-lg p-3">
+          <svg id="forecastGraph" width="100%" height="180"></svg>
+        </div>
+        <div id="forecastSummary" class="grid grid-cols-2 gap-3">
+          <div class="glass rounded-lg p-3">
+            <div class="text-sm font-semibold text-emerald-400 mb-1">Minimum AQI</div>
+            <div id="minAqiPacket" class="text-black text-sm bg-white rounded px-2 py-1 inline-block"></div>
+          </div>
+          <div class="glass rounded-lg p-3">
+            <div class="text-sm font-semibold text-emerald-400 mb-1">Maximum AQI</div>
+            <div id="maxAqiPacket" class="text-black text-sm bg-white rounded px-2 py-1 inline-block"></div>
+          </div>
+        </div>
       </div>`
   },
   actions: {
@@ -1017,6 +1120,30 @@ if (key === 'staySafe') {
     setTimeout(() => {
       citizenFloat.classList.remove('opacity-0', 'scale-95');
     }, 10);
+
+    // After opening forecast, render its content using saved latest forecast
+    if (key === 'forecast') {
+      setTimeout(() => {
+        const dataArr = Array.isArray(window.latestForecast24h) ? window.latestForecast24h : [];
+        if (typeof window.renderForecastTrend === 'function') {
+          window.renderForecastTrend(dataArr);
+        }
+        if (Array.isArray(dataArr) && dataArr.length) {
+          const minObj = dataArr.reduce((m, x) => (x.aqi < m.aqi ? x : m), dataArr[0]);
+          const maxObj = dataArr.reduce((m, x) => (x.aqi > m.aqi ? x : m), dataArr[0]);
+          const toHour = t => {
+            try { return new Date(t * 1000).getHours().toString().padStart(2, '0'); } catch { return '--'; }
+          };
+          const prevHour = t => {
+            try { const h = new Date(t * 1000).getHours(); return ((h + 23) % 24).toString().padStart(2, '0'); } catch { return '--'; }
+          };
+          const minPacket = document.getElementById('minAqiPacket');
+          const maxPacket = document.getElementById('maxAqiPacket');
+          if (minPacket && minObj) minPacket.innerText = `${prevHour(minObj.time)} - ${toHour(minObj.time)} (${minObj.aqi})`;
+          if (maxPacket && maxObj) maxPacket.innerText = `${prevHour(maxObj.time)} - ${toHour(maxObj.time)} (${maxObj.aqi})`;
+        }
+      }, 0);
+    }
   });
 });
 
@@ -1034,7 +1161,7 @@ async function wireGrievanceUI() {
   const submitBtn = document.getElementById('grievSubmit');
   const statusEl = document.getElementById('grievStatus');
   const listEl = document.getElementById('grievList');
-  const baseUrl = REMOTE_SERVER_URL.replace(/\/$/, '');
+  const baseUrl = LOCAL_BACKEND_URL.replace(/\/$/, '');
 
   async function loadComplaints() {
     listEl.innerHTML = 'Loading...';
