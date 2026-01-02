@@ -502,9 +502,12 @@ async function generateAiAnalysis(wardName, finalAQI, pollutants, key) {
       "impact_summary": "Short health impact summary.",
       "citizen_mitigation": "Long-term role for citizens (e.g., urban micro-forests, community composting, adopting solar, zero-waste lifestyle) - NOT medical advice like masks.",
       "govt_mitigation": "Immediate local actions (e.g., automated water sprinklers at hotspots, AI-based traffic signal sync, smog towers, strict C&D waste tracking).",
-      "active_policies": "Tell the realtime as of TODAY active policies pertaining to decreasaing pollution and give small summary of those policies",      
+      "active_policies": "Current status of GRAP and pollution related laws on ${istDate}.[also give a little summary of each policy active in delhi ONLY]",
+      "impact_if_removed": "Tell the roughly estimated but kind of accurate % that if that particualar source is removed in how much will the aqi roughly improve(like -30 AQI if fixed or smthn)",            
       "policy_recommendations": "New legislative policies for Delhi/State level that could scale nationally (e.g., Mandatory 'Green Roof' bylaws, congestion pricing zones, 100% electrification of delivery fleets, or localized hyper-local emission trading)."
-    }`;
+    }
+          Make SURE you give adequate ammount of data PER WARD since this will be used in a dashboard.
+`;
 
     const result = await model.generateContent(prompt);
     const raw = result.response.text();
@@ -545,12 +548,13 @@ async function updateWardSegment(startIndex, limitCount) {
     {
       "wardId": "Original ID",
       "source_breakdown": [{"source": "Traffic", "contribution_percent": 60, "major_pollutant": "PM2.5"}],
-      "impact_summary": "...",
+      "impact_summary": "Short health impact summary.",
       "citizen_mitigation": "Long-term role (no masks/purifiers).",
       "govt_mitigation": "Immediate local actions.",
-      "active_policies": "Current status of GRAP and laws on ${istDate}.",
+      "active_policies": "Current status of GRAP and pollution related laws on ${istDate}.[also give a sumamary of the active policites description BUT ONLY FOR DELHI ONES]",
       "policy_recommendations": "New legislative policies for Delhi."
     }
+    Make SURE you give adequate ammount of data PER WARD since this will be used in a dashboard.
     Data: ${JSON.stringify(wards)}`;
 
     const result = await model.generateContent(prompt);
@@ -698,6 +702,19 @@ if (isFresh) {
           }),
           aqi: calculateIndianAQI(d.components?.pm2_5),
         })),
+        forecast_24h: (forecastRes.status === "fulfilled" ? forecastRes.value.data.list.slice(0, 24) : []).map(d => ({
+  // Convert Unix timestamp (seconds) to a readable 24-hour format string (IST)
+  time: new Date(d.dt * 1000).toLocaleTimeString('en-IN', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false 
+  }),
+  // Calculate the Indian AQI for this forecasted hour based on PM2.5
+  aqi: calculateIndianAQI(d.components?.pm2_5),
+  // Optionally include raw pollutants for detailed tooltips
+  pm2_5: d.components?.pm2_5,
+  pm10: d.components?.pm10
+})),
         analysis: aiOutput, // Cached AI Insight
       });
       
