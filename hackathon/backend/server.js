@@ -76,7 +76,14 @@ const SearchLog = mongoose.model(
     timestamp: { type: Date, default: Date.now },
   })
 );
-
+const WardAnalysisStorage = mongoose.model(
+  "WardAnalysisStorage",
+  new mongoose.Schema({
+    wardId: { type: String, required: true, unique: true },
+    aiOutput: Object, // The Gemini JSON
+    lastUpdated: { type: Date, default: Date.now },
+  })
+);
 // --- USER SCHEMA ---
 const userSchema = new mongoose.Schema({
   email: {
@@ -446,8 +453,137 @@ const calculateIndianAQI = (pm25) => {
   if (pm25 <= 250) return Math.round(300 + ((pm25 - 120) * 100) / 130);
   return Math.round(400 + (pm25 - 250));
 };
+//Ward dividing w time:
+const cron = require('node-cron');
 
+// 12:00 AM IST (Wards 1-63)
+cron.schedule('0 0 * * *', () => updateWardSegment(0, 63), {
+  scheduled: true,
+  timezone: "Asia/Kolkata"
+});
+
+// 06:00 AM IST (Wards 64-126)
+cron.schedule('0 6 * * *', () => updateWardSegment(63, 63), {
+  scheduled: true,
+  timezone: "Asia/Kolkata"
+});
+
+// 12:00 PM IST (Wards 127-189)
+cron.schedule('0 12 * * *', () => updateWardSegment(126, 63), {
+  scheduled: true,
+  timezone: "Asia/Kolkata"
+});
+
+// 06:00 PM IST (Wards 190-250)
+cron.schedule('0 18 * * *', () => updateWardSegment(189, 61), {
+  scheduled: true,
+  timezone: "Asia/Kolkata"
+});
+//gemini prompt
+async function generateAiAnalysis(wardName, finalAQI, pollutants, key) {
+  try {
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash", // Updated to a stable high-performance model
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+      ]
+    });
+
+    const prompt = `Role: Senior Environmental Data Scientist. 
+    Context: Ward: ${wardName}, Delhi. Current AQI: ${finalAQI}. Pollutant Levels: ${JSON.stringify(pollutants)}.
+    
+    Task: Return ONLY a VALID JSON object with this exact structure:
+    {
+      "source_breakdown": [{"source": "Traffic", "contribution_percent": 60, "major_pollutant": "PM2.5"}],
+      "impact_summary": "Short health impact summary.",
+      "citizen_mitigation": "Long-term role for citizens (e.g., urban micro-forests, community composting, adopting solar, zero-waste lifestyle) - NOT medical advice like masks.",
+      "govt_mitigation": "Immediate local actions (e.g., automated water sprinklers at hotspots, AI-based traffic signal sync, smog towers, strict C&D waste tracking).",
+      "active_policies": "Tell the realtime as of TODAY active policies pertaining to decreasaing pollution and give small summary of those policies",      
+      "policy_recommendations": "New legislative policies for Delhi/State level that could scale nationally (e.g., Mandatory 'Green Roof' bylaws, congestion pricing zones, 100% electrification of delivery fleets, or localized hyper-local emission trading)."
+    }`;
+
+    const result = await model.generateContent(prompt);
+    const raw = result.response.text();
+    const match = raw.match(/\{[\s\S]*\}/);
+    
+    if (match) {
+        const parsedData = JSON.parse(match[0]);
+        // Note: You may need to update your UI display function to handle the new keys:
+        // parsedData.citizen_mitigation, parsedData.govt_mitigation, and parsedData.policy_recommendations
+        return parsedData;
+    } else {
+        return { error: "Parse Error" };
+    }
+  } catch (e) {
+    console.error("Gemini Function Error:", e.message);
+    return { error: "AI temporarily unavailable" };
+  }
+}
+//BULK MODE:
+async function updateWardSegment(startIndex, limitCount) {
+  try {
+    const key = process.env.GEMINI_KEY;
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    // 1. Force IST Date (Independent of server location)
+    const istDate = new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata'
+    }).format(new Date());
+
+    // 2. Fetch the specific segment of wards from MongoDB
+    // Use .lean() for faster performance during bulk operations
+    const wards = await Ward.find().sort({ wardId: 1 }).skip(startIndex).limit(limitCount).lean();
+
+    const prompt = `Role: Senior Environmental Data Scientist. 
+    Context: Analyze these ${wards.length} Delhi wards. Date: ${istDate}.
+    Task: Return ONLY a VALID JSON ARRAY of objects. Each object MUST have:
+    {
+      "wardId": "Original ID",
+      "source_breakdown": [{"source": "Traffic", "contribution_percent": 60, "major_pollutant": "PM2.5"}],
+      "impact_summary": "...",
+      "citizen_mitigation": "Long-term role (no masks/purifiers).",
+      "govt_mitigation": "Immediate local actions.",
+      "active_policies": "Current status of GRAP and laws on ${istDate}.",
+      "policy_recommendations": "New legislative policies for Delhi."
+    }
+    Data: ${JSON.stringify(wards)}`;
+
+    const result = await model.generateContent(prompt);
+    const raw = result.response.text();
+    const match = raw.match(/\[[\s\S]*\]/);
+    const aiResults = match ? JSON.parse(match[0]) : [];
+
+    if (aiResults.length > 0) {
+      // 3. THE OVERWRITE MAGIC: Prepare Bulk Operations
+      // This will overwrite your "Instant Click" data if it exists, or create it if not.
+      const operations = aiResults.map(res => ({
+        updateOne: {
+          filter: { wardId: res.wardId },
+          update: { 
+            $set: { 
+              aiOutput: res,           // This matches your instant click key
+              lastUpdated: new Date()  // Timestamp to track fresh data
+            } 
+          },
+          upsert: true // Creates the record if it doesn't exist
+        }
+      }));
+
+      // Execute all 62-63 updates in ONE database round-trip
+      await WardAnalysisStorage.bulkWrite(operations);
+      console.log(`[${istDate}] Successfully updated segment starting at index ${startIndex}`);
+    }
+  } catch (e) {
+    console.error(`Bulk Batch Error at ${startIndex}:`, e.message);
+  }
+}
 /* -------------------- 4. MAIN API ROUTE -------------------- */
+
 app.get(
   "/api/ward-analysis/:id",
   apiLimiter,
@@ -459,222 +595,116 @@ app.get(
     }
 
     const wardId = req.params.id;
-    const wardName = wardMapping[wardId];
-
-    console.log(`\n[DEBUG] Incoming Request for Ward ID: ${wardId}`);
-    console.log(`[DEBUG] Mapped Ward Name: ${wardName || "NOT FOUND"}`);
-
-    if (!wardName) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Ward number not found" });
-    }
-
-    /* --- ADDITION: CHECK STORAGE --- */
-    const cachedData = geminiCache.get(wardId);
-    console.log(`[DEBUG] Cache keys:`, geminiCache.keys());
-
-    if (cachedData) {
-      console.log(`[DEBUG] Cache HIT for wardId ${wardId}`);
-      console.log(`[DEBUG] Serving from storage: ${wardName}`);
-      return res.json(cachedData);
-    }
-    /* ------------------------------- */
-
     const { WAQI_TOKEN, OPENWEATHER_KEY, GEMINI_KEY } = process.env;
 
     try {
-/* -------- Step A: KML Geometry Lookup -------- */
-        let lat, lon; // Define these OUTSIDE so Step B can see them
-        let officialWardName = wardMapping[wardId] || "Unknown Ward";
+      /* -------- Step A: KML Geometry Lookup -------- */
+      let lat, lon, officialWardName;
+      const feature = wardsGeo.features.find(f => {
+        const p = f.properties;
+        return String(p.Ward_No) === String(wardId) || 
+               String(p.WNo_SEC) === String(wardId) ||
+               String(p.FID) === String(wardId);
+      });
 
-        try {
-            console.log(`[DEBUG] 🗺️ Finding coordinates in KML for Ward ID: ${wardId}`);
-            
-            // Safe property matching (handles numbers vs strings)
-            const feature = wardsGeo.features.find(f => {
-                const p = f.properties;
-                return String(p.Ward_No) === String(wardId) || 
-                       String(p.WNo_SEC) === String(wardId) ||
-                       String(p.FID) === String(wardId);
-            });
-
-            if (!feature) {
-                console.error(`[DEBUG] Ward ${wardId} NOT found in KML properties`);
-                return res.status(404).json({ success: false, message: "Ward geometry not found" });
-            }
-
-            // Correctly extract coordinates from Turf centroid
-            const centroid = turf.centroid(feature);
-            lon = centroid.geometry.coordinates[0];
-            lat = centroid.geometry.coordinates[1];
-            
-            officialWardName = feature.properties.WardName || officialWardName;
-            console.log(`[DEBUG] 📍 Centroid Found: ${lat}, ${lon} for ${officialWardName}`);
-
-        } catch (kmlErr) {
-            console.error("❌ KML Processing Error:", kmlErr.message);
-            return res.status(500).json({ success: false, message: "Geometry error" });
-        }
-
-        /* -------- Step B: Parallel Fetch -------- */
-        // Now lat and lon ARE defined here
-        console.log(`[DEBUG] Starting Parallel Fetch for: ${officialWardName}`);
-        const now = Math.floor(Date.now() / 1000);
-        const yesterday = now - 86400;
-
-        const [waqiRes, owmRes, historyRes, forecastRes] = await Promise.allSettled([
-            axiosInstance.get(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=${WAQI_TOKEN}`),
-            axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_KEY}`),
-            axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${lat}&lon=${lon}&start=${yesterday}&end=${now}&appid=${OPENWEATHER_KEY}`),
-            axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_KEY}`)
-        ]);
-
-      const waqiData =
-        waqiRes.status === "fulfilled" && waqiRes.value.data.status === "ok"
-          ? waqiRes.value.data.data
-          : null;
-
-      // ✅ SAFE access (no crash if list empty)
-      const owmPollutants =
-        owmRes.status === "fulfilled" && owmRes.value.data.list?.length
-          ? owmRes.value.data.list[0].components
-          : null;
-
-      const finalAQI =
-        waqiData?.aqi || calculateIndianAQI(owmPollutants?.pm2_5);
-
-      const historyData =
-        historyRes.status === "fulfilled"
-          ? historyRes.value.data.list.slice(-24)
-          : [];
-
-      const forecastData =
-        forecastRes.status === "fulfilled"
-          ? forecastRes.value.data.list.slice(0, 24)
-          : [];
-
-      /* -------- STEP C: AI ANALYSIS (UNCHANGED PROMPT) -------- */
-      let aiOutput;
-      console.log(`\n--- [DEBUG] PRE-GEMINI DATA CHECK ---`);
-      console.log(`Ward: ${wardName}`);
-      console.log(`AQI: ${finalAQI}`);
-      console.log(`Pollutants: PM2.5: ${owmPollutants?.pm2_5}`);
-      console.log(`-------------------------------------\n`);
-      try {
-        console.log(`[DEBUG] Gemini call started for ${wardName}`);
-
-        const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-        const model = genAI.getGenerativeModel({
-          model: "gemma-3-12b",
-          // ADD THIS PART TO STOP THE BLANK RESPONSES:
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_ONLY_HIGH", // Allows more "edgy" or accidental text
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_ONLY_HIGH",
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_ONLY_HIGH",
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_ONLY_HIGH",
-            },
-          ],
-        });
-
-        const prompt = `
-        Role: Senior Environmental Data Scientist.
-        Context: Analyzing Ward: ${wardName}, Delhi. Current AQI: ${finalAQI}. 
-        Pollutants: PM2.5: ${owmPollutants?.pm2_5}, PM10: ${
-          owmPollutants?.pm10
-        }, NO2: ${owmPollutants?.no2}.
-
-        Task: Return a VALID JSON object (no markdown) with this structure:
-        {
-          "cigarettes_count": ${(finalAQI / 22).toFixed(1)},
-          "source_breakdown": [
-            {
-              "source": "e.g., Vehicular Traffic",
-              "contribution_percent": 45,
-              "major_pollutant": "NO2 and PM2.5",
-              "actionable_mitigation": "Specify a local action for ${wardName}",
-              "impact_if_removed": "-15% AQI reduction"
-            }
-          ],
-          "impact_summary": "If all primary local sources are mitigated, estimated AQI would drop to approx ${Math.round(
-            finalAQI * 0.6
-          )}."
-        }
-
-        Rules:
-        1. Base source percentages on Delhi's seasonal patterns and the ward's local characteristics.
-        2. Ensure percentages total 100%.
-        `;
-
-        const result = await model.generateContent(prompt);
-        console.log(
-          "Finish Reason:",
-          result.response.candidates[0].finishReason
-        );
-        const raw = result.response.text();
-
-        console.log(`[DEBUG] Gemini raw response (first 200 chars):`);
-        console.log(raw.slice(0, 200));
-
-        // 🛡️ ultra-safe JSON extraction (no logic change)
-        const match = raw.match(/\{[\s\S]*\}/);
-        if (!match) throw new Error("No JSON object found in Gemini response");
-
-        aiOutput = JSON.parse(match[0]);
-
-        console.log(`[DEBUG] Gemini JSON parsed successfully`);
-      } catch (e) {
-        console.error("AI Error:", e.message);
-        aiOutput = { error: "AI simulation unavailable. Basic data sent." };
+      if (!feature) {
+        return res.status(404).json({ success: false, message: "Ward geometry not found" });
       }
 
-      console.log(`\n✨ --- GEMINI ANALYSIS FOR: ${wardName} ---`);
-      console.log(JSON.stringify(aiOutput, null, 2));
-      console.log(`-------------------------------------------\n`);
+      const centroid = turf.centroid(feature);
+      lon = centroid.geometry.coordinates[0];
+      lat = centroid.geometry.coordinates[1];
+      officialWardName = feature.properties.WardName || wardMapping[wardId] || "Unknown Ward";
 
-      /* -------- STEP D: RESPONSE -------- */
-      const finalResult = {
+      /* -------- Step B: Parallel Fetch (REAL-TIME) -------- */
+      const now = Math.floor(Date.now() / 1000);
+      const yesterday = now - 86400;
+
+      const [waqiRes, owmRes, historyRes, forecastRes] = await Promise.allSettled([
+        axiosInstance.get(`https://api.waqi.info/feed/geo:${lat};${lon}/?token=${WAQI_TOKEN}`),
+        axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_KEY}`),
+        axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${lat}&lon=${lon}&start=${yesterday}&end=${now}&appid=${OPENWEATHER_KEY}`),
+        axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_KEY}`)
+      ]);
+
+      const waqiData = waqiRes.status === "fulfilled" && waqiRes.value.data.status === "ok" ? waqiRes.value.data.data : null;
+      const owmPollutants = owmRes.status === "fulfilled" && owmRes.value.data.list?.length ? owmRes.value.data.list[0].components : null;
+      const finalAQI = waqiData?.aqi || calculateIndianAQI(owmPollutants?.pm2_5);
+
+/* -------- Step C: AI ANALYSIS (WITH EXPIRED FALLBACK) -------- */
+let aiOutput;
+const storedAnalysis = await WardAnalysisStorage.findOne({ wardId });
+
+// 1. Check if data is "Fresh" (less than 24 hours old)
+const isFresh = storedAnalysis && (Date.now() - storedAnalysis.lastUpdated < 24 * 60 * 60 * 1000);
+
+if (isFresh) {
+    console.log(`[DEBUG] Serving Fresh AI Analysis from MongoDB`);
+    aiOutput = storedAnalysis.aiOutput;
+} else {
+    console.log(`[DEBUG] Cache expired/missing. Attempting Gemini call...`);
+    try {
+        // Attempt to get NEW data
+        aiOutput = await generateAiAnalysis(officialWardName, finalAQI, owmPollutants, GEMINI_KEY);
+        
+        // Check if Gemini actually returned data or an error object
+        if (aiOutput && !aiOutput.error) {
+            await WardAnalysisStorage.findOneAndUpdate(
+                { wardId },
+                { aiOutput, lastUpdated: new Date() },
+                { upsert: true }
+            );
+            console.log(`[DEBUG] Success! MongoDB updated with new Gemini data.`);
+        } else {
+            // If generateAiAnalysis returned an {error: ...} object
+            throw new Error("Gemini returned an internal error object");
+        }
+    } catch (aiError) {
+        console.error(`[CRITICAL fallback] Gemini failed: ${aiError.message}`);
+        
+        if (storedAnalysis) {
+            console.log(`[DEBUG] Using EXPIRED data as fallback for ${officialWardName}`);
+            aiOutput = storedAnalysis.aiOutput;
+            // Optional: Tag the output so frontend knows it's old
+            aiOutput.isOfflineData = true; 
+        } else {
+            // Last resort: If there is NO data in DB at all
+            // Change this part in your "catch (aiError)" block:
+          aiOutput = { 
+              impact_summary: "AI analysis currently being updated. Please check back in a few minutes.",
+              source_breakdown: [],
+              citizen_mitigation: "Data loading...",
+              govt_mitigation: "Data loading...",
+              policy_recommendations: "Data loading..."
+          };
+        }
+    }
+}
+
+      /* -------- Step D: FINAL RESPONSE -------- */
+      res.json({
         success: true,
-        ward: wardName,
+        ward: officialWardName,
         ward_id: wardId,
         current_aqi: finalAQI,
+        cigarettes_count: (finalAQI / 22).toFixed(1), // Real-time calculation
         raw_pollutants: owmPollutants,
-        history_24h: historyData.map((d) => ({
-          time: d.dt,
-          aqi: calculateIndianAQI(d.components.pm2_5),
+        history_24h: (historyRes.status === "fulfilled" ? historyRes.value.data.list.slice(-24) : []).map(d => ({
+          // Convert Unix timestamp (seconds) to a readable 24-hour format string
+          time: new Date(d.dt * 1000).toLocaleTimeString('en-IN', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          }),
+          aqi: calculateIndianAQI(d.components?.pm2_5),
         })),
-        forecast_24h: forecastData.map((d) => ({
-          time: d.dt,
-          aqi: calculateIndianAQI(d.components.pm2_5),
-        })),
-        analysis: aiOutput,
-      };
+        analysis: aiOutput, // Cached AI Insight
+      });
+      
 
-      /* --- ADDITION: SAVE TO STORAGE (LIMIT 5, EXPIRE 2MIN) --- */
-      const keys = geminiCache.keys();
-      if (keys.length >= 5) {
-        geminiCache.del(keys[0]); // Remove oldest if we hit 5
-      }
-      geminiCache.set(wardId, finalResult);
-      /* ------------------------------------------------------- */
-
-      res.json(finalResult);
-    } catch (outerError) {
-      console.error("Critical Route Error:", outerError);
-      res
-        .status(500)
-        .json({ success: false, message: "Internal Server Error" });
+    } catch (err) {
+      console.error("Critical Error:", err.message);
+      res.status(500).json({ success: false, message: "Server Error" });
     }
   }
 );
