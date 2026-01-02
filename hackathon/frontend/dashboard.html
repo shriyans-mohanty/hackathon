@@ -59,6 +59,12 @@
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
+    
+    /* Minimal Scrollbar for Sidebar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
   </style>
 </head>
 <body>
@@ -156,7 +162,7 @@
   </div>
 
   <!-- Info side panel (glassmorphism) -->
-<div id="infoPanel" class="fixed top-0 right-0 h-full w-[92%] max-w-sm glass p-6 translate-x-full transition-transform duration-500 z-[2000] overflow-auto">
+<div id="infoPanel" class="fixed top-0 right-0 h-full w-[92%] max-w-sm glass p-6 translate-x-full transition-transform duration-500 z-[2000] overflow-y-auto overflow-x-hidden">
   <!-- 🔹 Original Working Elements -->
   <h2 id="locationTitle" class="text-3xl font-semibold mb-1 neon-text">Location</h2>
   <p id="locationSub" class="text-xs text-gray-300 mb-4">--</p>
@@ -172,7 +178,6 @@
     </div>
   </div>
 
-
   
   <!-- 🌟 Unified Tab Section (Govt + Citizen UI) -->
   <div id="uiTabs" class="grid grid-cols-2 gap-3 mb-6">
@@ -184,23 +189,18 @@
 
     <!-- 🧑‍🤝‍🧑 Citizen-Exclusive Features -->
     <button class="ui-tab-btn" data-key="complaint">Grievances</button>
-    <button class="ui-tab-btn" data-key="policies">Policy (GRAP)</button>
+    <button class="ui-tab-btn" data-key="policies">Policy Recommendations</button>
     <button class="ui-tab-btn" data-key="govTask">MCD Actions</button>
 
   </div>
   <div class="mt-4">
     <h3 class="font-semibold mb-2">AQI Trend (24h)</h3>
     <div id="aqiTrendContainer" class="glass rounded-lg p-3">
-      <svg id="historyGraph" width="100%" height="180"></svg>
+      <svg id="historyGraph" width="100%" height="130"></svg>
     </div>
     <div id="ciggsEqBelow" class="text-xs text-gray-300 mt-2"></div>
   </div>
 
-  <!-- 🔹 Mandatory advisory for JS -->
-  <div class="mt-6">
-    <h3 class="font-semibold mb-2">Health Advisory</h3>
-    <p id="advisory" class="text-gray-200 text-sm">--</p>
-  </div>
   <div id="sourceBreakdown" class="mt-6 hidden">
     <h3 class="font-semibold mb-3 text-emerald-400">🔬 Pollution Sources</h3>
     <div id="sourceList" class="space-y-2"></div>
@@ -608,6 +608,7 @@ async function integrateLiveAQIntoWards() {
     // Set global AQI immediately for the tabs
     latestWardAQI = feature.properties.aqi || 0;
     latestWardAI = null; // Clear previous ward's AI data
+    window.latestCigarettes = null; // Clear previous data
 
     if (typeof locationTitle !== 'undefined') locationTitle.innerText = wardName;
     if (typeof locationSub !== 'undefined') locationSub.innerText = `Ward Number: ${wardId} | AC: ${feature.properties.AC_Name}`;
@@ -637,13 +638,15 @@ async function integrateLiveAQIntoWards() {
                 // ✅ CORRECT PLACE TO SAVE DATA GLOBALLY
                 latestWardAI = data.analysis; 
                 window.latestForecast24h = data.forecast_24h || [];
+                window.latestCigarettes = data.cigarettes_count; // Store cigarettes count globally
 
                 const mergedData = {
                     aqi: latestWardAQI, 
                     pm25: data.raw_pollutants?.pm2_5 || localData.pm25,
                     pm10: data.raw_pollutants?.pm10 || localData.pm10,
-                    analysis: data.analysis 
-                    ,history_24h: data.history_24h || []
+                    analysis: data.analysis,
+                    history_24h: data.history_24h || [],
+                    cigarettes_count: data.cigarettes_count // Pass to UI update
                 };
 
                 updateWardUI(mergedData);
@@ -659,10 +662,12 @@ async function integrateLiveAQIntoWards() {
 }
 function updateWardUI(data) {
     // 1. Extract Values
-    const aqi = data.aqi || 0;
-    const pm25 = data.pm25 || 0;
-    const pm10 = data.pm10 || 0;
+    const aqi = data.current_aqi || data.aqi || 0;
+    const pm25 = data.pm25 || (data.raw_pollutants ? data.raw_pollutants.pm2_5 : 0);
+    const pm10 = data.pm10 || (data.raw_pollutants ? data.raw_pollutants.pm10 : 0);
     const aiAnalysis = data.analysis || null;
+    const cigarettes = data.cigarettes_count || (aqi / 22).toFixed(1);
+
 
     // 2. Visual Colors/Labels
     const color = getAQIColor(aqi);
@@ -690,60 +695,39 @@ function updateWardUI(data) {
     }
 
     // --- RIGHT INFO PANEL UPDATES ---
-    // Handle Text elements safely
     if (typeof aqiText !== 'undefined') {
         aqiText.innerText = `AQI: ${aqi > 0 ? aqi : '--'} - ${label}`;
         aqiText.style.color = color;
     }
 
-    // Handle PM Values (Support various ID naming conventions)
+    // Update PM values
     const pm25Val = pm25 > 0 ? Number(pm25).toFixed(1) : '--';
     const pm10Val = pm10 > 0 ? Number(pm10).toFixed(1) : '--';
-
-    const pm25Targets = ['val-pm25', 'pm25', 'pm25El']; // IDs to try
-    pm25Targets.forEach(id => {
-        const el = document.getElementById(id) || (typeof window[id] !== 'undefined' ? window[id] : null);
-        if (el && el instanceof HTMLElement) el.innerText = pm25Val;
-    });
-
-    const pm10Targets = ['val-pm10', 'pm10', 'pm10El'];
-    pm10Targets.forEach(id => {
-        const el = document.getElementById(id) || (typeof window[id] !== 'undefined' ? window[id] : null);
-        if (el && el instanceof HTMLElement) el.innerText = pm10Val;
-    });
+    ['val-pm25', 'pm25'].forEach(id => { if(document.getElementById(id)) document.getElementById(id).innerText = pm25Val; });
+    ['val-pm10', 'pm10'].forEach(id => { if(document.getElementById(id)) document.getElementById(id).innerText = pm10Val; });
 
     // --- ADVISORY & CIGARETTES LOGIC ---
-    // 1. Identify the container
-    const advisoryElement = document.getElementById('advisory') || (typeof advisoryEl !== 'undefined' ? advisoryEl : null);
-    const cigDiv = document.getElementById('ciggsEqBelow'); // Cigarettes summary below trend
+    // Note: Sidebar text advisory removed as per request. Only shown in popup now.
+    
+    const cigDiv = document.getElementById('ciggsEqBelow');
 
-  if (advisoryElement) {
-      if (aiAnalysis && !aiAnalysis.error) {
-            // CASE A: BACKEND DATA IS HERE
-            const cigarettes = aiAnalysis.cigarettes_count || '0';
-            const impact = aiAnalysis.impact_summary || 'Detailed analysis available.';
-            
-            // Rich HTML Advisory
-            advisoryElement.innerHTML = `
-                <div class="space-y-2">
-                    <p class="font-semibold text-emerald-400">⚠️ Cigarette Equivalent</p>
-                    <p class="text-sm">Breathing this air = smoking <strong>${cigarettes}</strong> cigarettes today.</p>
-                    <p class="text-xs text-gray-400 mt-2">${impact}</p>
-                </div>
-            `;
-            
-            if (cigDiv) cigDiv.innerText = `Air in the selected ward is equivalent to smoking ${cigarettes} cigarettes a day.`;
-        } else {
-            // CASE B: LOCAL DATA ONLY (Fallback)
-            advisoryElement.innerText = advisoryForAQI(aqi);
-            
-            if (cigDiv) cigDiv.innerText = ""; 
-      }
-  }
-  // Draw 24h history graph if we have AI-backed arrays captured globally
-  if (Array.isArray(data.history_24h) && typeof window.renderHistoryTrend === 'function') {
-    window.renderHistoryTrend(data.history_24h);
-  }
+    if (cigDiv) {
+        cigDiv.innerHTML = `
+            <div class="flex items-center justify-center gap-2">
+               <span>🚬</span>
+               <span>Air quality ≈ smoking <strong class="text-white">${cigarettes}</strong> cigarettes/day</span>
+            </div>
+        `;
+        cigDiv.className = "text-xs text-emerald-400 mt-3 font-mono bg-emerald-900/20 p-2 rounded border border-emerald-500/20 text-center shadow-[0_0_10px_rgba(16,185,129,0.1)]";
+    }
+
+    // --- TREND GRAPH LOGIC ---
+    if (Array.isArray(data.history_24h) && typeof window.renderHistoryTrend === 'function') {
+        // Timeout ensures the side panel is visible so the SVG can calculate its width
+        setTimeout(() => {
+            window.renderHistoryTrend(data.history_24h);
+        }, 200);
+    }
 }
 
 // ============ GRAPH RENDERERS ============
@@ -759,7 +743,33 @@ function hourLabel(ts) {
 }
 function renderColoredLine(svgEl, points, w, h) {
   while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
-  const padL = 30, padR = 10;
+  const padL = 35, padR = 10;
+  
+  // --- Task 3: Y-axis Labels (Intervals of 50) ---
+  for (let aqi = 0; aqi <= 500; aqi += 50) {
+    const y = aqiToY(aqi, h);
+    
+    // Faint grid lines for main intervals (0, 100, 200, etc.)
+    if (aqi % 100 === 0 || aqi === 500) { 
+       const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
+       grid.setAttribute("x1", padL); grid.setAttribute("y1", y);
+       grid.setAttribute("x2", w - padR); grid.setAttribute("y2", y);
+       grid.setAttribute("stroke", "#ffffff15"); 
+       grid.setAttribute("stroke-dasharray", "2,2");
+       svgEl.appendChild(grid);
+    }
+    
+    // Label
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", padL - 5);
+    t.setAttribute("y", y + 3); 
+    t.setAttribute("fill", "#cbd5e1"); // Lighter for visibility on dark bg
+    t.setAttribute("font-size", "9");
+    t.setAttribute("text-anchor", "end");
+    t.textContent = aqi;
+    svgEl.appendChild(t);
+  }
+
   const n = points.length;
   if (!n) return;
   const stepX = (w - padL - padR) / Math.max(1, n - 1);
@@ -777,15 +787,16 @@ function renderColoredLine(svgEl, points, w, h) {
     svgEl.appendChild(line);
   }
   // X-axis hour ticks
-  for (let i = 0; i < n; i += 6) {
+  for (let i = 0; i < n; i += 4) { // Increased frequency (every 4th point)
     const x = padL + i * stepX;
     const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
     t.setAttribute("x", x);
     t.setAttribute("y", h - 4);
-    t.setAttribute("fill", "#9CA3AF");
+    t.setAttribute("fill", "#cbd5e1"); // Lighter for visibility
     t.setAttribute("font-size", "10");
     t.setAttribute("text-anchor", "middle");
-    t.textContent = points[i].label || hourLabel(points[i].time || 0);
+    // Use time string directly if available
+    t.textContent = points[i].label || (typeof points[i].time === 'string' ? points[i].time : hourLabel(points[i].time || 0));
     svgEl.appendChild(t);
   }
 }
@@ -863,8 +874,22 @@ function placeTempMarker(coords, title) {
 async function handleSearch() {
   const q = searchInput.value.trim();
   if (!q) return;
-  const ql = q.toLowerCase();
-  const local = wardsGeo?.features.find(f => (f.properties.name || '').toLowerCase().includes(ql));
+  
+  // --- Task 1: Numeric Ward Search Check ---
+  // If input is purely numerical, prioritize searching by Ward_No
+  let local = null;
+  const isNumeric = /^\d+$/.test(q);
+
+  if (isNumeric && wardsGeo) {
+    // Try to find a ward with matching Ward_No (converting both to strings for safety)
+    local = wardsGeo.features.find(f => String(f.properties.Ward_No) === q);
+  }
+
+  // If not numeric or not found by number, fall back to name search
+  if (!local) {
+    const ql = q.toLowerCase();
+    local = wardsGeo?.features.find(f => (f.properties.name || '').toLowerCase().includes(ql));
+  }
   
   if (local) {
     const layer = findLayerForFeature(local);
@@ -1047,14 +1072,16 @@ if (key === 'staySafe') {
       title = 'Health Advisory';
       const a = latestWardAQI;
       const ai = latestWardAI;
+      const cigs = window.latestCigarettes || (a / 22).toFixed(1);
       
       // Check if friend's AI data exists to show the cigarette count
+      
       if (ai && !ai.error) {
         body = `
           <div class="space-y-4 text-slate-300">
             <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl">
               <p class="text-emerald-400 font-bold mb-1">⚠️ Cigarette Equivalent</p>
-              <p class="text-2xl font-bold text-white">Breathing this air is like smoking <strong>${ai.cigarettes_count}</strong> cigarettes today.</p>
+              <p class="text-2xl font-bold text-white">Breathing this air is like smoking <strong>${cigs}</strong> cigarettes today.</p>
             </div>
             <div class="space-y-2">
               <p class="font-semibold text-emerald-400">Health Impact Summary:</p>
@@ -1066,9 +1093,15 @@ if (key === 'staySafe') {
         const label = getAQILabel(a);
         const advice = advisoryForAQI(a);
         body = `
-          <div class="space-y-3 text-slate-300">
-            <p><strong class="text-emerald-400">Status:</strong> ${a != null ? `${a} - ${label}` : 'No data'}</p>
-            <p>${advice}</p>
+          <div class="space-y-4 text-slate-300">
+            <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl">
+              <p class="text-emerald-400 font-bold mb-1">⚠️ Cigarette Equivalent</p>
+              <p class="text-2xl font-bold text-white">Breathing this air is like smoking <strong>${cigs}</strong> cigarettes today.</p>
+            </div>
+            <div class="space-y-2">
+              <p class="font-semibold text-emerald-400">Advisory for ${label} AQI:</p>
+              <div class="text-sm leading-relaxed whitespace-pre-line">${advice}</div>
+            </div>
           </div>`;
       }
     } else if (key === 'actions') {
@@ -1097,16 +1130,47 @@ if (key === 'staySafe') {
     else if (key === 'complaint') {
       title = 'Grievance Redressal';
       body = `
-        <div class="space-y-3 text-slate-300">
-          <form id="grievForm" class="space-y-2">
-            <input id="grievText" type="text" class="w-full px-3 py-2 rounded border border-white/20 bg-black/40" placeholder="Describe the non-compliance">
-            <input id="grievImage" type="file" accept="image/*" class="w-full text-xs">
-            <button id="grievSubmit" type="button" class="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white">Submit Complaint</button>
+        <div class="space-y-4 text-slate-300">
+          <p>Report environmental violations (garbage burning, construction dust, industrial emissions) directly to the Central Control Room.</p>
+          
+          <form id="grievForm" class="space-y-3">
+            <div class="relative">
+              <textarea id="grievText" rows="3" class="w-full px-3 py-2 pr-10 rounded border border-white/20 bg-black/40 focus:border-emerald-500 focus:outline-none transition-colors" placeholder="Describe the non-compliance..."></textarea>
+              
+              <!-- Voice to Text Button -->
+              <button id="voiceBtn" type="button" class="absolute right-2 bottom-2 text-slate-400 hover:text-emerald-400 transition-colors" title="Speak to type">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Image Upload & Submit Row -->
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <input id="grievImage" type="file" accept="image/*" class="hidden">
+                <button id="imgUploadBtn" type="button" class="flex items-center gap-2 px-3 py-2 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-300 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                  </svg>
+                  <span id="fileNameDisplay">Add Photo</span>
+                </button>
+              </div>
+
+              <button id="grievSubmit" type="button" class="px-5 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium shadow-lg shadow-emerald-900/20 transition-all hover:scale-105">Submit Complaint</button>
+            </div>
           </form>
-          <div id="grievStatus" class="text-xs text-slate-400"></div>
-          <div class="mt-4">
-            <h4 class="font-semibold mb-2 text-emerald-400">Submitted Complaints</h4>
-            <div id="grievList" class="space-y-2"></div>
+
+          <div id="grievStatus" class="text-xs text-slate-400 min-h-[1.5em]"></div>
+          
+          <div class="mt-6 border-t border-white/10 pt-4">
+            <h4 class="font-semibold mb-3 text-emerald-400 text-sm uppercase tracking-wide">Submitted Complaints</h4>
+            <div id="grievList" class="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar"></div>
+          </div>
+          
+          <div class="bg-slate-900/50 p-3 rounded border border-emerald-500/30 mt-4">
+            <p><strong class="text-emerald-400">Green Delhi Helpline:</strong> <a href="tel:1800118600" class="text-emerald-300 hover:underline">1800-11-8600</a></p>
+            <p class="mt-1"><strong class="text-emerald-400">Web Portal:</strong> <span class="text-slate-300">greendelhi.gov.in</span></p>
           </div>
         </div>`;
       setTimeout(() => {
@@ -1161,38 +1225,102 @@ async function wireGrievanceUI() {
   const submitBtn = document.getElementById('grievSubmit');
   const statusEl = document.getElementById('grievStatus');
   const listEl = document.getElementById('grievList');
-  const baseUrl = LOCAL_BACKEND_URL.replace(/\/$/, '');
+  const voiceBtn = document.getElementById('voiceBtn');
+  const imgUploadBtn = document.getElementById('imgUploadBtn');
+  const fileNameDisplay = document.getElementById('fileNameDisplay');
+  const baseUrl = REMOTE_SERVER_URL.replace(/\/$/, '');
+
+  // --- Voice to Text Logic ---
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition && voiceBtn) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    voiceBtn.addEventListener('click', () => {
+      try {
+        recognition.start();
+        statusEl.innerText = 'Listening...';
+        voiceBtn.classList.add('text-emerald-400', 'animate-pulse');
+      } catch (e) {
+        console.error(e);
+      }
+    });
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      textEl.value = (textEl.value + ' ' + transcript).trim();
+      statusEl.innerText = '';
+      voiceBtn.classList.remove('text-emerald-400', 'animate-pulse');
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error', event.error);
+      statusEl.innerText = 'Voice input failed. Please type.';
+      voiceBtn.classList.remove('text-emerald-400', 'animate-pulse');
+    };
+
+    recognition.onend = () => {
+      voiceBtn.classList.remove('text-emerald-400', 'animate-pulse');
+      if (statusEl.innerText === 'Listening...') statusEl.innerText = '';
+    };
+  } else if (voiceBtn) {
+    voiceBtn.style.display = 'none'; // Hide if not supported
+  }
+
+  // --- Image Upload UI Logic ---
+  if (imgUploadBtn && imgEl) {
+    imgUploadBtn.addEventListener('click', () => imgEl.click());
+    imgEl.addEventListener('change', () => {
+      if (imgEl.files && imgEl.files[0]) {
+        fileNameDisplay.textContent = imgEl.files[0].name.length > 15 
+          ? imgEl.files[0].name.substring(0, 12) + '...' 
+          : imgEl.files[0].name;
+        imgUploadBtn.classList.add('border-emerald-500/50', 'bg-emerald-500/10');
+      } else {
+        fileNameDisplay.textContent = 'Add Photo';
+        imgUploadBtn.classList.remove('border-emerald-500/50', 'bg-emerald-500/10');
+      }
+    });
+  }
 
   async function loadComplaints() {
-    listEl.innerHTML = 'Loading...';
+    listEl.innerHTML = '<div class="text-xs text-slate-500 animate-pulse">Loading complaints...</div>';
     try {
       const r = await fetch(`${baseUrl}/api/grievances`);
       const items = r.ok ? await r.json() : [];
-      listEl.innerHTML = items.length ? items.map(it => `
-        <div class="glass p-3 rounded flex justify-between items-center">
-          <div class="text-xs">
-            <div class="font-medium">${it.description || 'No description'}</div>
-            ${it.image_url ? `<a href="${it.image_url}" target="_blank" class="text-emerald-400 underline">View Image</a>` : ''}
+      
+      if (items.length) {
+        listEl.innerHTML = items.map(it => `
+          <div class="glass p-3 rounded flex justify-between items-center group hover:bg-white/5 transition-colors">
+            <div class="text-xs w-full mr-2">
+              <div class="font-medium text-slate-200">${it.description || 'No description'}</div>
+              ${it.image_url ? `<a href="${it.image_url}" target="_blank" class="text-emerald-400 hover:text-emerald-300 underline mt-1 inline-block">View Image</a>` : ''}
+              <div class="text-[10px] text-slate-500 mt-1">${new Date().toLocaleDateString()}</div>
+            </div>
+            <button data-id="${it.id}" class="delGriev px-3 py-1.5 text-xs rounded bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white transition-all opacity-0 group-hover:opacity-100">Delete</button>
           </div>
-          <button data-id="${it.id}" class="delGriev px-3 py-1 text-xs rounded bg-red-600 hover:bg-red-700 text-white">Delete</button>
-        </div>
-      `).join('') : '<div class="text-xs text-slate-400">No complaints found.</div>';
-      listEl.querySelectorAll('.delGriev').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-id');
-          if (!id) return;
-          btn.disabled = true;
-          try {
-            const d = await fetch(`${baseUrl}/api/grievances/${id}`, { method: 'DELETE' });
-            if (!d.ok) throw new Error('Delete failed');
-            await loadComplaints();
-          } catch (err) {
-            statusEl.innerText = 'Error deleting complaint.';
-          } finally {
-            btn.disabled = false;
-          }
+        `).join('');
+        
+        listEl.querySelectorAll('.delGriev').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            if (!id) return;
+            btn.disabled = true;
+            btn.innerText = '...';
+            try {
+              const d = await fetch(`${baseUrl}/api/grievances/${id}`, { method: 'DELETE' });
+              if (!d.ok) throw new Error('Delete failed');
+              await loadComplaints();
+            } catch (err) {
+              statusEl.innerText = 'Error deleting complaint.';
+            }
+          });
         });
-      });
+      } else {
+        listEl.innerHTML = '<div class="text-xs text-slate-400 text-center py-4 italic">No unresolved complaints at present.</div>';
+      }
     } catch (err) {
       listEl.innerHTML = '<div class="text-xs text-red-400">Failed to load complaints.</div>';
     }
@@ -1209,16 +1337,29 @@ async function wireGrievanceUI() {
     fd.append('description', desc);
     if (file) fd.append('image', file);
     if (latestWardName) fd.append('ward', latestWardName);
+    
     statusEl.innerText = 'Submitting...';
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-75');
+    
     try {
       const r = await fetch(`${baseUrl}/api/grievances`, { method: 'POST', body: fd });
       if (!r.ok) throw new Error('Submit failed');
       statusEl.innerText = 'Submitted successfully.';
+      statusEl.className = 'text-xs text-emerald-400';
       textEl.value = '';
       imgEl.value = '';
+      fileNameDisplay.textContent = 'Add Photo';
+      imgUploadBtn.classList.remove('border-emerald-500/50', 'bg-emerald-500/10');
+      
       await loadComplaints();
+      setTimeout(() => { statusEl.innerText = ''; }, 3000);
     } catch (err) {
       statusEl.innerText = 'Error submitting complaint.';
+      statusEl.className = 'text-xs text-red-400';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('opacity-75');
     }
   });
 
