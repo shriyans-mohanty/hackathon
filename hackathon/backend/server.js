@@ -84,6 +84,16 @@ const WardAnalysisStorage = mongoose.model(
     lastUpdated: { type: Date, default: Date.now },
   })
 );
+const Ward = mongoose.model(
+  "Ward",
+  new mongoose.Schema({
+    wardId: { type: String, required: true, unique: true },
+    wardName: String,
+    aqi: Number,
+    pollutants: Object,
+    lastUpdated: { type: Date, default: Date.now },
+  })
+);
 // --- USER SCHEMA ---
 const userSchema = new mongoose.Schema({
   email: {
@@ -475,13 +485,16 @@ cron.schedule('0 12 * * *', () => updateWardSegment(126, 63), {
 });
 
 // 06:00 PM IST (Wards 190-250)
-cron.schedule('0 18 * * *', () => updateWardSegment(189, 61), {
+cron.schedule('42 18 * * *', () => updateWardSegment(189, 61), {
   scheduled: true,
   timezone: "Asia/Kolkata"
 });
 //gemini prompt
 async function generateAiAnalysis(wardName, finalAQI, pollutants, key) {
   try {
+    const istDate = new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata'
+    }).format(new Date());
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash", // Updated to a stable high-performance model
@@ -493,21 +506,39 @@ async function generateAiAnalysis(wardName, finalAQI, pollutants, key) {
       ]
     });
 
-    const prompt = `Role: Senior Environmental Data Scientist. 
-    Context: Ward: ${wardName}, Delhi. Current AQI: ${finalAQI}. Pollutant Levels: ${JSON.stringify(pollutants)}.
-    
-    Task: Return ONLY a VALID JSON object with this exact structure:
+   const prompt = `Role: Senior Environmental Data Scientist & Urban Policy Architect.
+Context: Ward: ${wardName}, Delhi. Current AQI: ${finalAQI}. Pollutant Levels: ${JSON.stringify(pollutants)}.
+Current Delhi Date: ${istDate}.
+
+Task: Generate a high-fidelity, descriptive analysis of air quality sources and multi-dimensional policy impacts. 
+Ground all suggestions in Delhi's specific socio-economic fabric.
+
+Return ONLY a VALID JSON object with this exact structure:
+{
+  "source_breakdown": [
     {
-      "source_breakdown": [{"source": "Traffic", "contribution_percent": 60, "major_pollutant": "PM2.5"}],
-      "impact_summary": "Short health impact summary.",
-      "citizen_mitigation": "Long-term role for citizens (e.g., urban micro-forests, community composting, adopting solar, zero-waste lifestyle) - NOT medical advice like masks.",
-      "govt_mitigation": "Immediate local actions (e.g., automated water sprinklers at hotspots, AI-based traffic signal sync, smog towers, strict C&D waste tracking).",
-      "active_policies": "Current status of GRAP and pollution related laws on ${istDate}.[also give a little summary of each policy active in delhi ONLY]",
-      "impact_if_removed": "Tell the roughly estimated but kind of accurate % that if that particualar source is removed in how much will the aqi roughly improve(like -30 AQI if fixed or smthn)",            
-      "policy_recommendations": "New legislative policies for Delhi/State level that could scale nationally (e.g., Mandatory 'Green Roof' bylaws, congestion pricing zones, 100% electrification of delivery fleets, or localized hyper-local emission trading)."
+      "source": "Specific sector (e.g., 'Construction & Demolition Dust')",
+      "contribution_percent": 0, 
+      "major_pollutant": "PM10",
+      "impact_if_removed": "Predicted AQI reduction (e.g., '-40 AQI points')",
+      "citizen_mitigation": "Descriptive ward-specific community actions. Focus on local activism and behavioral changes.",
+      "govt_mitigation": "Descriptive technical/legal enforcement actions specific to ${wardName}'s infrastructure."
     }
-          Make SURE you give adequate ammount of data PER WARD since this will be used in a dashboard.
-`;
+  ],
+  "impact_summary": "A 3-sentence descriptive summary of immediate health risks for vulnerable groups in ${wardName}.",
+  "active_policies": "A detailed summary of all pollution policies active in Delhi as of ${istDate}. Specifically list the active GRAP Stage and summarize the 3 most impactful restrictions.",
+  "policy_recommendations": [
+    {
+      "policy_name": "E.g., Low Emission Zones (LEZ) in Commercial Hubs",
+      "description": "Deeply descriptive legislative proposal (3-4 sentences) outlining the mandate, enforcement mechanism, and specific target areas.",
+      "estimated_effects": {
+        "pollution": "Estimated % reduction in ward-level pollutants.",
+        "socio_economic": "Detailed analysis of how this affects citizens' lives (e.g., 'Will reduce commute times by 15%', 'Could increase retail footfall due to better walkability', 'May require transition subsidies for small-scale transport workers').",
+        "workforce_productivity": "Estimation of how health improvements translate to reduced sick leaves or increased outdoor working hours for laborers."
+      }
+    }
+  ]
+}`;
 
     const result = await model.generateContent(prompt);
     const raw = result.response.text();
@@ -542,20 +573,39 @@ async function updateWardSegment(startIndex, limitCount) {
     // Use .lean() for faster performance during bulk operations
     const wards = await Ward.find().sort({ wardId: 1 }).skip(startIndex).limit(limitCount).lean();
 
-    const prompt = `Role: Senior Environmental Data Scientist. 
-    Context: Analyze these ${wards.length} Delhi wards. Date: ${istDate}.
-    Task: Return ONLY a VALID JSON ARRAY of objects. Each object MUST have:
+    const prompt = `Role: Senior Environmental Data Scientist & Urban Policy Architect.
+Context: Ward: ${wardName}, Delhi. Current AQI: ${finalAQI}. Pollutant Levels: ${JSON.stringify(pollutants)}.
+Current Delhi Date: ${istDate}.
+
+Task: Generate a high-fidelity, descriptive analysis of air quality sources and multi-dimensional policy impacts. 
+Ground all suggestions in Delhi's specific socio-economic fabric.
+
+Return ONLY a VALID JSON object with this exact structure:
+{
+  "source_breakdown": [
     {
-      "wardId": "Original ID",
-      "source_breakdown": [{"source": "Traffic", "contribution_percent": 60, "major_pollutant": "PM2.5"}],
-      "impact_summary": "Short health impact summary.",
-      "citizen_mitigation": "Long-term role (no masks/purifiers).",
-      "govt_mitigation": "Immediate local actions.",
-      "active_policies": "Current status of GRAP and pollution related laws on ${istDate}.[also give a sumamary of the active policites description BUT ONLY FOR DELHI ONES]",
-      "policy_recommendations": "New legislative policies for Delhi."
+      "source": "Specific sector (e.g., 'Construction & Demolition Dust')",
+      "contribution_percent": 0, 
+      "major_pollutant": "PM10",
+      "impact_if_removed": "Predicted AQI reduction (e.g., '-40 AQI points')",
+      "citizen_mitigation": "Descriptive ward-specific community actions. Focus on local activism and behavioral changes.",
+      "govt_mitigation": "Descriptive technical/legal enforcement actions specific to ${wardName}'s infrastructure."
     }
-    Make SURE you give adequate ammount of data PER WARD since this will be used in a dashboard.
-    Data: ${JSON.stringify(wards)}`;
+  ],
+  "impact_summary": "A 3-sentence descriptive summary of immediate health risks for vulnerable groups in ${wardName}.",
+  "active_policies": "A detailed summary of all pollution policies active in Delhi as of ${istDate}. Specifically list the active GRAP Stage and summarize the 3 most impactful restrictions.",
+  "policy_recommendations": [
+    {
+      "policy_name": "E.g., Low Emission Zones (LEZ) in Commercial Hubs",
+      "description": "Deeply descriptive legislative proposal (3-4 sentences) outlining the mandate, enforcement mechanism, and specific target areas.",
+      "estimated_effects": {
+        "pollution": "Estimated % reduction in ward-level pollutants.",
+        "socio_economic": "Detailed analysis of how this affects citizens' lives (e.g., 'Will reduce commute times by 15%', 'Could increase retail footfall due to better walkability', 'May require transition subsidies for small-scale transport workers').",
+        "workforce_productivity": "Estimation of how health improvements translate to reduced sick leaves or increased outdoor working hours for laborers."
+      }
+    }
+  ]
+}`;
 
     const result = await model.generateContent(prompt);
     const raw = result.response.text();
@@ -675,12 +725,32 @@ if (isFresh) {
             // Last resort: If there is NO data in DB at all
             // Change this part in your "catch (aiError)" block:
           aiOutput = { 
-              impact_summary: "AI analysis currently being updated. Please check back in a few minutes.",
-              source_breakdown: [],
-              citizen_mitigation: "Data loading...",
-              govt_mitigation: "Data loading...",
-              policy_recommendations: "Data loading..."
-          };
+    impact_summary: "AI analysis is currently being generated. Please refresh in a few moments.",
+    // Matches the new array structure to prevent frontend .map() errors
+    source_breakdown: [
+        {
+            source: "Loading...",
+            contribution_percent: 0,
+            major_pollutant: "...",
+            impact_if_removed: "...",
+            citizen_mitigation: "Data pending...",
+            govt_mitigation: "Data pending..."
+        }
+    ],
+    active_policies: "Policies are being fetched for " + istDate,
+    // Matches the new detailed policy array structure
+    policy_recommendations: [
+        {
+            policy_name: "Loading Recommendation...",
+            description: "Detailed analysis is in progress.",
+            estimated_effects: {
+                pollution: "Calculating...",
+                socio_economic: "Analyzing...",
+                workforce_productivity: "Estimating..."
+            }
+        }
+    ]
+};
         }
     }
 }
@@ -776,7 +846,159 @@ app.patch('/api/grievances/:id/resolve', async (req, res) => {
         res.status(500).json({ error: 'Failed to update status' });
     }
 });
+const grievanceSchema = new mongoose.Schema({
+  description: { type: String, required: true },
+  ward: { type: String },
+  ipAddress: { type: String },
+  image_url: { type: String },
+  status: { type: String, enum: ["pending", "resolved"], default: "pending" },
+  createdAt: { type: Date, default: Date.now },
+  
+});
+const Grievance = mongoose.model("Grievance", grievanceSchema);
+app.get("/api/grievances", async (req, res) => {
+  try {
+    const items = await Grievance.find().sort({ createdAt: -1 }).lean();
+    res.json(
+      items.map((g) => ({
+        id: g._id.toString(),
+        description: g.description || "",
+        image_url: g.image_url || null,
+        status: g.status || "pending",
+      }))
+    );
+  } catch (e) {
+    res.status(500).json([]);
+  }
+});
 
+app.get("/api/grievances/by-ip", async (req, res) => {
+  try {
+    const ipAddress = (req.query.ipAddress || "").toString().trim();
+    console.log(ipAddress)
+    if (!ipAddress) return res.json([]);
+    const items = await Grievance.find({ ipAddress }).sort({ createdAt: -1 }).lean();
+    res.json(
+      items.map((g) => ({
+        id: g._id.toString(),
+        description: g.description || "",
+        image_url: g.image_url || null,
+        status: g.status || "pending",
+      }))
+    );
+  } catch (e) {
+    res.status(500).json([]);
+  }
+});
+
+app.post("/api/grievances", async (req, res) => {
+  try {
+    const { description, ward, ipAddress, image_url } = req.body || {};
+    if (!description || !String(description).trim()) {
+      return res.status(400).json({ success: false, message: "Description required" });
+    }
+    const doc = await Grievance.create({
+      description: String(description).trim(),
+      ward: ward || "",
+      ipAddress: ipAddress || "",
+      image_url: image_url || null,
+      status: "pending",
+    });
+    res.status(201).json({ success: true, id: doc._id.toString() });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+});
+
+app.patch("/api/grievances/:id/resolve", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Grievance.findByIdAndUpdate(id, { $set: { status: "resolved" } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+});
+
+app.delete("/api/grievances/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Grievance.findByIdAndDelete(id);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+});
+//MCD ACTION TRISHANKS
+const mcdActionSchema = new mongoose.Schema({
+  ward: { type: String, required: true, trim: true },
+  action_text: { type: String, required: true, trim: true },
+  action_date: { type: Date, required: true },
+  doc_url: { type: String },
+  status: { type: String, enum: ["posted", "deleted"], default: "posted" },
+  createdAt: { type: Date, default: Date.now }
+});
+const MCDAction = mongoose.model("MCDAction", mcdActionSchema);
+
+app.get("/api/mcd-actions", async (req, res) => {
+  try {
+    const ward = (req.query.ward || "").toString().trim();
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+    const q = { status: "posted" };
+    if (ward) q.ward = ward;
+    if (startDate || endDate) {
+      q.action_date = {};
+      if (startDate) q.action_date.$gte = startDate;
+      if (endDate) q.action_date.$lte = endDate;
+    }
+    const items = await MCDAction.find(q).sort({ action_date: -1, createdAt: -1 }).lean();
+    const out = items.map(a => ({
+      id: a._id.toString(),
+      ward: a.ward,
+      action_text: a.action_text,
+      action_date: a.action_date,
+      doc_url: a.doc_url || null
+    }));
+    res.json(out);
+  } catch (e) {
+    res.status(500).json([]);
+  }
+});
+
+app.post("/api/mcd-actions", async (req, res) => {
+  try {
+    let { ward, action_text, action_date, doc_url } = req.body || {};
+    ward = (ward || "").toString().trim().slice(0, 120).replace(/[<>]/g, "");
+    action_text = (action_text || "").toString().trim().slice(0, 2000).replace(/[<>]/g, "");
+    doc_url = doc_url ? (doc_url.toString().trim().slice(0, 2000)) : null;
+    const dateObj = action_date ? new Date(action_date) : null;
+    if (!ward || !action_text || !dateObj || isNaN(dateObj.getTime())) {
+      return res.status(400).json({ success: false, message: "Invalid input" });
+    }
+    console.log("[mcd] POST", { ward, len: action_text.length });
+    const doc = await MCDAction.create({
+      ward,
+      action_text,
+      action_date: dateObj,
+      doc_url: doc_url || null
+    });
+    res.status(201).json({ success: true, id: doc._id.toString() });
+  } catch (e) {
+    console.error("[mcd] POST error", e && e.message || e);
+    res.status(500).json({ success: false, error: e && e.message || "server_error" });
+  }
+});
+
+app.delete("/api/mcd-actions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await MCDAction.findByIdAndUpdate(id, { $set: { status: "deleted" } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false });
+  }
+});
 /* -------------------- 5. START SERVER -------------------- */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
