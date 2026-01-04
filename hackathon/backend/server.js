@@ -103,45 +103,46 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     trim: true,
     validate: {
-      validator: function (v) {
-        return v.endsWith("@gov.in");
+      validator: function(v) {
+        // Allow emails ending with @gov.in or @*.gov.in (like @delhi.gov.in)
+        return /\.gov\.in$/.test(v) || v.endsWith('@gov.in');
       },
-      message: "Email must be a valid government email (@gov.in)",
-    },
+      message: 'Email must be a valid government email (@gov.in or @*.gov.in)'
+    }
   },
   password: {
     type: String,
     required: true,
-    minlength: 6,
+    minlength: 6
   },
   role: {
     type: String,
-    enum: ["admin", "govt", "employee", "viewer"],
-    default: "employee",
+    enum: ['admin', 'govt', 'employee', 'viewer'],
+    default: 'employee'
   },
   isActive: {
     type: Boolean,
-    default: true,
+    default: true
   },
   createdAt: {
     type: Date,
-    default: Date.now,
+    default: Date.now
   },
   lastLogin: {
-    type: Date,
-  },
+    type: Date
+  }
 });
-
 // Hash password before saving
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-
+userSchema.pre('save', async function() {
+  if (!this.isModified('password')) return;
+  
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
+    console.log('✅ Password hashed in pre-save hook');
   } catch (error) {
-    next(error);
+    console.error('❌ Error hashing password:', error);
+    throw error;
   }
 });
 
@@ -153,43 +154,39 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 const User = mongoose.model("User", userSchema);
 // --- CREATE DEMO USER ---
 async function createDemoUser() {
-  try {
-    const demoEmail = "admin@delhi.gov.in";
-    const demoPass = "govt123";
-
-    const exists = await User.findOne({ email: demoEmail });
-    if (!exists) {
-      const user = new User({
-        email: demoEmail,
-        password: demoPass,
-        role: "govt",
-      });
-      await user.save();
-      console.log(`👤 Demo Govt User Created: ${demoEmail} / ${demoPass}`);
-    } else {
-      console.log("ℹ️ Demo Govt User already exists.");
+    try {
+        const demoEmail = "admin@delhi.gov.in";
+        const demoPass = "govt123";
+        
+        // Delete existing demo user to recreate with fresh password
+        await User.deleteOne({ email: demoEmail });
+        console.log("🗑️ Removed old demo user (if existed)");
+        
+        const user = new User({ 
+            email: demoEmail, 
+            password: demoPass, 
+            role: "govt" 
+        });
+        await user.save();
+        console.log(`👤 Demo Govt User Created: ${demoEmail} / ${demoPass}`);
+        console.log("✅ Password hashed successfully");
+    } catch (err) {
+        console.log("❌ Error seeding user:", err.message);
     }
-  } catch (err) {
-    console.log("Error seeding user:", err);
-  }
 }
 
 // --- AUTH MIDDLEWARE ---
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Access token required" });
+    return res.status(401).json({ success: false, message: 'Access token required' });
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Invalid or expired token" });
+      return res.status(403).json({ success: false, message: 'Invalid or expired token' });
     }
     req.user = user;
     next();
@@ -198,252 +195,224 @@ const authenticateToken = (req, res, next) => {
 
 // --- GOVT ROUTE PROTECTION ---
 const protectGovtRoute = (req, res, next) => {
-  const token = req.headers["authorization"];
+    const token = req.headers['authorization'];
 
-  if (!token) {
-    return res
-      .status(401)
-      .json({ success: false, message: "No token provided" });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== "govt" && decoded.role !== "admin") {
-      return res
-        .status(403)
-        .json({ success: false, message: "Forbidden: Not a Govt account" });
+    if (!token) {
+        return res.status(401).json({ success: false, message: "No token provided" });
     }
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res
-      .status(401)
-      .json({ success: false, message: "Invalid or expired token" });
-  }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.role !== 'govt' && decoded.role !== 'admin') {
+            return res.status(403).json({ success: false, message: "Forbidden: Not a Govt account" });
+        }
+        req.user = decoded;
+        next();
+    } catch (err) {
+        res.status(401).json({ success: false, message: "Invalid or expired token" });
+    }
 };
+
 // ==================== AUTHENTICATION ROUTES ====================
 
 // 1. LOGIN ROUTE
-app.post("/api/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+app.post('/api/login', async (req, res) => {
+    try {
+        console.log('🔐 Login attempt received');
+        console.log('Request body:', { email: req.body.email, passwordProvided: !!req.body.password });
+        
+        const { email, password } = req.body;
 
-    // Validate input
-    if (!email || !password) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email and password are required" });
-    }
+        // Validate input
+        if (!email || !password) {
+            console.log('❌ Validation failed: Missing email or password');
+            return res.status(400).json({ success: false, message: 'Email and password are required' });
+        }
 
-    // Find user
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
-    }
+        console.log('🔍 Searching for user:', email.toLowerCase());
+        
+        // Find user
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (!user) {
+            console.log('❌ User not found:', email);
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
 
-    // Check if user is active
-    if (!user.isActive) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Account is deactivated. Please contact admin.",
+        console.log('✅ User found:', { email: user.email, role: user.role, isActive: user.isActive });
+
+        // Check if user is active
+        if (!user.isActive) {
+            console.log('❌ User account is deactivated');
+            return res.status(403).json({ success: false, message: 'Account is deactivated. Please contact admin.' });
+        }
+
+        console.log('🔑 Verifying password...');
+        
+        // Verify password
+        const isPasswordValid = await user.comparePassword(password);
+        console.log('Password valid:', isPasswordValid);
+        
+        if (!isPasswordValid) {
+            console.log('❌ Invalid password');
+            return res.status(401).json({ success: false, message: 'Incorrect password' });
+        }
+
+        console.log('✅ Password verified, updating last login');
+        
+        // Update last login
+        user.lastLogin = new Date();
+        await user.save();
+
+        console.log('🎫 Generating JWT token');
+        
+        // Generate JWT token
+        const token = jwt.sign(
+            { 
+                userId: user._id, 
+                email: user.email, 
+                role: user.role 
+            },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        console.log('✅ Login successful for:', user.email);
+
+        res.json({
+            success: true,
+            message: 'Login successful',
+            token: token,
+            role: user.role,
+            userId: user._id,
+            email: user.email,
+            redirect: user.role === 'govt' || user.role === 'admin' ? '/govt-dashboard' : '/'
         });
+
+    } catch (error) {
+        console.error('❌ Login error:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ success: false, message: 'Server error during login', error: error.message });
     }
-
-    // Verify password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Incorrect password" });
-    }
-
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
-
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        email: user.email,
-        role: user.role,
-      },
-      JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    res.json({
-      success: true,
-      message: "Login successful",
-      token: token,
-      role: user.role,
-      userId: user._id,
-      email: user.email,
-      redirect:
-        user.role === "govt" || user.role === "admin" ? "/govt-dashboard" : "/",
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Server error during login" });
-  }
 });
 
 // 2. START SIGNUP PROCESS
-app.post("/api/signup/start", async (req, res) => {
-  try {
-    const { email } = req.body;
+app.post('/api/signup/start', async (req, res) => {
+    try {
+        const { email } = req.body;
 
-    // Validate email
-    if (!email) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Email is required" });
-    }
+        // Validate email
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
 
-    if (!email.endsWith("@gov.in")) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Please use a valid government email (@gov.in)",
+        if (!email.endsWith('@gov.in') && !/\.gov\.in$/.test(email)) {
+            return res.status(400).json({ success: false, message: 'Please use a valid government email (@gov.in or @*.gov.in)' });
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        if (existingUser) {
+            return res.status(409).json({ success: false, message: 'User with this email already exists' });
+        }
+
+        // Generate temporary token for password creation
+        const tempToken = jwt.sign(
+            { email: email.toLowerCase(), purpose: 'signup' },
+            JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        res.json({
+            success: true,
+            message: 'Email verified. Please create your password.',
+            token: tempToken
         });
+
+    } catch (error) {
+        console.error('Signup start error:', error);
+        res.status(500).json({ success: false, message: 'Server error during signup' });
     }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res
-        .status(409)
-        .json({
-          success: false,
-          message: "User with this email already exists",
-        });
-    }
-
-    // Generate temporary token for password creation
-    const tempToken = jwt.sign(
-      { email: email.toLowerCase(), purpose: "signup" },
-      JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    res.json({
-      success: true,
-      message: "Email verified. Please create your password.",
-      token: tempToken,
-    });
-  } catch (error) {
-    console.error("Signup start error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Server error during signup" });
-  }
 });
 
 // 3. COMPLETE SIGNUP (Create Password)
-app.post("/api/signup/complete", async (req, res) => {
-  try {
-    const { token, password } = req.body;
-
-    // Validate input
-    if (!token || !password) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Token and password are required" });
-    }
-
-    if (password.length < 6) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Password must be at least 6 characters long",
-        });
-    }
-
-    // Verify token
-    let decoded;
+app.post('/api/signup/complete', async (req, res) => {
     try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch (err) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid or expired token" });
+        const { token, password } = req.body;
+
+        // Validate input
+        if (!token || !password) {
+            return res.status(400).json({ success: false, message: 'Token and password are required' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+        }
+
+        // Verify token
+        let decoded;
+        try {
+            decoded = jwt.verify(token, JWT_SECRET);
+        } catch (err) {
+            return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+        }
+
+        if (decoded.purpose !== 'signup') {
+            return res.status(401).json({ success: false, message: 'Invalid token type' });
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email: decoded.email });
+        if (existingUser) {
+            return res.status(409).json({ success: false, message: 'User already exists' });
+        }
+
+        // Create new user
+        const newUser = new User({
+            email: decoded.email,
+            password: password,
+            role: 'employee'
+        });
+
+        await newUser.save();
+
+        // Generate login token
+        const loginToken = jwt.sign(
+            { 
+                userId: newUser._id, 
+                email: newUser.email, 
+                role: newUser.role 
+            },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Account created successfully',
+            token: loginToken,
+            userId: newUser._id,
+            role: newUser.role,
+            email: newUser.email
+        });
+
+    } catch (error) {
+        console.error('Signup complete error:', error);
+        res.status(500).json({ success: false, message: 'Server error during account creation' });
     }
-
-    if (decoded.purpose !== "signup") {
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid token type" });
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: decoded.email });
-    if (existingUser) {
-      return res
-        .status(409)
-        .json({ success: false, message: "User already exists" });
-    }
-
-    // Create new user
-    const newUser = new User({
-      email: decoded.email,
-      password: password,
-      role: "employee",
-    });
-
-    await newUser.save();
-
-    // Generate login token
-    const loginToken = jwt.sign(
-      {
-        userId: newUser._id,
-        email: newUser.email,
-        role: newUser.role,
-      },
-      JWT_SECRET,
-      { expiresIn: "24h" }
-    );
-
-    res.status(201).json({
-      success: true,
-      message: "Account created successfully",
-      token: loginToken,
-      userId: newUser._id,
-      role: newUser.role,
-      email: newUser.email,
-    });
-  } catch (error) {
-    console.error("Signup complete error:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Server error during account creation",
-      });
-  }
 });
 
 // 4. GET USER PROFILE
-app.get("/api/profile", authenticateToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId).select("-password");
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+app.get('/api/profile', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId).select('-password');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        res.json({ success: true, data: user });
+    } catch (error) {
+        console.error('Profile fetch error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
-    res.json({ success: true, data: user });
-  } catch (error) {
-    console.error("Profile fetch error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
 });
 
 /* -------------------- 2. RATE LIMITER -------------------- */
@@ -462,6 +431,25 @@ const calculateIndianAQI = (pm25) => {
   if (pm25 <= 120) return Math.round(200 + ((pm25 - 90) * 100) / 30);
   if (pm25 <= 250) return Math.round(300 + ((pm25 - 120) * 100) / 130);
   return Math.round(400 + (pm25 - 250));
+};
+// PM10 Calculation (CPCB Breakpoints)
+const calculatePM10Index = (pm10) => {
+  if (pm10 == null || pm10 < 0) return 0;
+  if (pm10 <= 50) return Math.round((pm10 * 50) / 50);
+  if (pm10 <= 100) return Math.round(50 + (pm10 - 50) * (50 / 50));
+  if (pm10 <= 250) return Math.round(100 + (pm10 - 100) * (100 / 150));
+  if (pm10 <= 350) return Math.round(200 + (pm10 - 250) * (100 / 100));
+  if (pm10 <= 430) return Math.round(300 + (pm10 - 350) * (100 / 80));
+  return Math.round(400 + (pm10 - 430));
+};
+
+// NO2 Calculation (CPCB Breakpoints)
+const calculateNO2Index = (no2) => {
+  if (no2 == null || no2 < 0) return 0;
+  if (no2 <= 40) return Math.round((no2 * 50) / 40);
+  if (no2 <= 80) return Math.round(50 + (no2 - 40) * (50 / 40));
+  if (no2 <= 180) return Math.round(100 + (no2 - 80) * (100 / 100));
+  return 0; // Simplified for the main pollutants
 };
 //Ward dividing w time:
 const cron = require('node-cron');
@@ -724,11 +712,53 @@ app.get(
         axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${lat}&lon=${lon}&start=${yesterday}&end=${now}&appid=${OPENWEATHER_KEY}`),
         axiosInstance.get(`https://api.openweathermap.org/data/2.5/air_pollution/forecast?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_KEY}`)
       ]);
+      //owm aqi
+      // This URL fetches both the raw components AND the internal OWM AQI (1-5)
+const owmResponse = await axiosInstance.get(
+  `http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${process.env.OPENWEATHER_KEY}`
+);
+
+// Save the full data object
+const owmData = owmResponse.data;
 
       const waqiData = waqiRes.status === "fulfilled" && waqiRes.value.data.status === "ok" ? waqiRes.value.data.data : null;
       const owmPollutants = owmRes.status === "fulfilled" && owmRes.value.data.list?.length ? owmRes.value.data.list[0].components : null;
-      const finalAQI = waqiData?.aqi || calculateIndianAQI(owmPollutants?.pm2_5);
+      const components = owmData.list[0].components;
 
+// 1. Calculate individual sub-indices
+const pm25SubIndex = calculateIndianAQI(components.pm2_5); // Your existing function
+const pm10SubIndex = calculatePM10Index(components.pm10);
+const no2SubIndex = calculateNO2Index(components.no2);
+
+// 2. The Final AQI is the MAXIMUM of all of them
+// We use Math.max to pick the 'Prominent Pollutant'
+const calculatedAQI = Math.max(pm25SubIndex, pm10SubIndex, no2SubIndex);
+
+// 3. Final Fallback Strategy
+const finalAQI = waqiData?.aqi || calculatedAQI || (owmData.list[0].main.aqi * 60);
+console.log(finalAQI);
+const pm25_concentration = owmPollutants?.pm2_5 ?? "N/A";
+const pm10_concentration = owmPollutants?.pm10 ?? "N/A";
+console.log(pm25_concentration);
+console.log(pm10_concentration);
+const cigarettes = pm25_concentration > 0 
+    ? (pm25_concentration / 22).toFixed(1) 
+    : "0.0";
+console.log(cigarettes);
+
+const getProminentAQI = (components) => {
+  if (!components) return null;
+
+  const indices = [
+    calculateIndianAQI(components.pm2_5), // Your PM2.5 function
+    calculatePM10Index(components.pm10),   // The PM10 function we added
+    calculateNO2Index(components.no2)      // The NO2 function we added
+  ];
+
+  // Filters out nulls/NaNs and picks the highest sub-index
+  const validIndices = indices.filter(val => val !== null && !isNaN(val));
+  return validIndices.length > 0 ? Math.max(...validIndices) : null;
+};
 /* -------- Step C: AI ANALYSIS (WITH EXPIRED FALLBACK) -------- */
 let aiOutput;
 const storedAnalysis = await WardAnalysisStorage.findOne({ wardId });
@@ -805,27 +835,28 @@ if (isFresh) {
         ward: officialWardName,
         ward_id: wardId,
         current_aqi: finalAQI,
-        cigarettes_count: (finalAQI / 22).toFixed(1), // Real-time calculation
+        cigarettes_count: cigarettes, // Real-time calculation
         raw_pollutants: owmPollutants,
-        history_24h: (historyRes.status === "fulfilled" ? historyRes.value.data.list.slice(-24) : []).map(d => ({
-          // Convert Unix timestamp (seconds) to a readable 24-hour format string
-          time: new Date(d.dt * 1000).toLocaleTimeString('en-IN', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            hour12: false 
-          }),
-          aqi: calculateIndianAQI(d.components?.pm2_5),
-        })),
-        forecast_24h: (forecastRes.status === "fulfilled" ? forecastRes.value.data.list.slice(0, 24) : []).map(d => ({
-  // Convert Unix timestamp (seconds) to a readable 24-hour format string (IST)
+        // --- HISTORY SECTION ---
+history_24h: (historyRes.status === "fulfilled" ? historyRes.value.data.list.slice(-24) : []).map(d => ({
   time: new Date(d.dt * 1000).toLocaleTimeString('en-IN', { 
     hour: '2-digit', 
     minute: '2-digit', 
     hour12: false 
   }),
-  // Calculate the Indian AQI for this forecasted hour based on PM2.5
-  aqi: calculateIndianAQI(d.components?.pm2_5),
-  // Optionally include raw pollutants for detailed tooltips
+  // Use the function here so the graph is NOT a flat line
+  aqi: getProminentAQI(d.components), 
+})),
+
+// --- FORECAST SECTION ---
+forecast_24h: (forecastRes.status === "fulfilled" ? forecastRes.value.data.list.slice(0, 24) : []).map(d => ({
+  time: new Date(d.dt * 1000).toLocaleTimeString('en-IN', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false 
+  }),
+  // Same here: each future hour gets its own unique AQI prediction
+  aqi: getProminentAQI(d.components),
   pm2_5: d.components?.pm2_5,
   pm10: d.components?.pm10
 })),
@@ -842,24 +873,28 @@ if (isFresh) {
 //AQI SHOW
 app.get("/api/aqi", async (req, res) => {
   try {
-    // Bounding box covering Delhi NCR
-    console.log(`[DEBUG]Starting Bounding`);
     const response = await axios.get(`https://api.waqi.info/map/bounds/`, {
       params: {
         token: process.env.WAQI_TOKEN,
         latlng: "28.40,76.80,28.90,77.50",
       },
     });
-    console.log(`[DEBUG]Finished Bounding`);
 
     if (response.data.status !== "ok") {
       return res.status(500).json({ error: "WAQI API error" });
     }
 
-    res.json(response.data.data); // <-- ARRAY OF STATIONS
+    // This map ensures all naming stays EXACTLY as it was in the original WAQI response
+    // so your frontend teammate doesn't have to change a single line of code.
+    const stations = response.data.data.map(station => ({
+      ...station, // This keeps lat, lon, uid, station name, etc.
+      aqi: Number(station.aqi) || 0 // This just ensures 'aqi' is a clean number
+    }));
+
+    res.json(stations); 
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Failed to fetch AQI" });
+    console.error("Map Route Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch map data" });
   }
 });
 // --- MARK GRIEVANCE AS RESOLVED ---
