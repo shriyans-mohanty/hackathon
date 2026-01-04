@@ -1,2 +1,2 @@
-# hackathon
-aqi monitor
+# hack4delhi AQI dashboard
+teamname- hackthehaze
